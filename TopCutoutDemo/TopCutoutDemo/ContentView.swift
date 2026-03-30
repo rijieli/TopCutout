@@ -7,15 +7,23 @@
 
 import SwiftUI
 import TopCutout
+import UIKit
 
 struct ContentView: View {
     @State private var isGlowing = false
+    @State private var copyFeedback = "Copy Debug JSON"
+    @State private var lastLoggedReportKey: String?
 
     var body: some View {
         GeometryReader { proxy in
             let resolved = resolvedGeometry(
                 screenSize: proxy.size,
                 safeAreaTop: proxy.safeAreaInsets.top
+            )
+            let debugReport = TopCutoutCatalogProbeReport.make(
+                screenSize: proxy.size,
+                safeAreaTop: proxy.safeAreaInsets.top,
+                resolved: resolved
             )
             let cutoutBottom = resolved.map { $0.geometry.topInset + $0.geometry.size.height } ?? proxy.safeAreaInsets.top
 
@@ -30,6 +38,11 @@ struct ContentView: View {
                     .allowsHitTesting(false)
                 }
 
+                if let exclusionRect = debugReport.exclusionRect {
+                    DebugExclusionOverlay(rect: exclusionRect)
+                        .allowsHitTesting(false)
+                }
+
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 22) {
                         Spacer()
@@ -42,6 +55,12 @@ struct ContentView: View {
                         } else {
                             UnresolvedPanel()
                         }
+
+                        DebugProbePanel(
+                            report: debugReport,
+                            copyFeedback: copyFeedback,
+                            onCopy: { copyDebugReport(debugReport) }
+                        )
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 16)
@@ -50,6 +69,9 @@ struct ContentView: View {
                 }
             }
             .ignoresSafeArea()
+            .task(id: debugReport.logKey) {
+                logDebugReportIfNeeded(debugReport)
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -81,12 +103,223 @@ struct ContentView: View {
 
         return nil
     }
+
+    private func copyDebugReport(_ report: TopCutoutCatalogProbeReport) {
+        let payload = report.prettyJSONString
+        UIPasteboard.general.string = payload
+        print("[TopCutoutDemo] Copied debug report:")
+        print(payload)
+        copyFeedback = "Copied"
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            copyFeedback = "Copy Debug JSON"
+        }
+    }
+
+    private func logDebugReportIfNeeded(_ report: TopCutoutCatalogProbeReport) {
+        guard report.logKey != lastLoggedReportKey else {
+            return
+        }
+
+        lastLoggedReportKey = report.logKey
+        print("[TopCutoutDemo] Debug report:")
+        print(report.prettyJSONString)
+    }
 }
 
 private struct ResolvedGeometry {
     let geometry: TopCutoutGeometry
     let source: String
     let modelIdentifier: String
+}
+
+private struct TopCutoutCatalogProbeReport: Encodable {
+    let deviceName: String
+    let modelIdentifier: String
+    let screenSize: ProbeSize
+    let safeAreaTop: Double
+    let exclusionRect: ProbeRect?
+    let inferredGeometry: ProbeGeometry?
+    let resolvedGeometry: ProbeGeometry?
+    let resolvedSource: String?
+    let matchesResolvedGeometry: Bool?
+    let catalogPatch: CatalogPatch?
+
+    var logKey: String {
+        let rectKey = exclusionRect.map { "\($0.x),\($0.y),\($0.width),\($0.height)" } ?? "none"
+        return "\(modelIdentifier)|\(screenSize.width)|\(screenSize.height)|\(safeAreaTop)|\(rectKey)|\(resolvedSource ?? "none")"
+    }
+
+    var prettyJSONString: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        guard let data = try? encoder.encode(self),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{ \"error\": \"Failed to encode debug report\" }"
+        }
+
+        return string
+    }
+
+    static func make(
+        screenSize: CGSize,
+        safeAreaTop: CGFloat,
+        resolved: ResolvedGeometry?
+    ) -> TopCutoutCatalogProbeReport {
+        let modelIdentifier = IPhoneTopCutoutCatalog.currentModelIdentifier()
+        let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
+        let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
+        let resolvedGeometry = resolved.map { ProbeGeometry(geometry: $0.geometry) }
+        let matchesResolvedGeometry = inferredGeometry.flatMap { inferred in
+            resolvedGeometry.map { inferred.matches($0) }
+        }
+
+        return TopCutoutCatalogProbeReport(
+            deviceName: TopCutoutCatalogProbe.deviceName,
+            modelIdentifier: modelIdentifier,
+            screenSize: ProbeSize(size: screenSize),
+            safeAreaTop: Self.probeValue(safeAreaTop),
+            exclusionRect: exclusionRect,
+            inferredGeometry: inferredGeometry,
+            resolvedGeometry: resolvedGeometry,
+            resolvedSource: resolved?.source,
+            matchesResolvedGeometry: matchesResolvedGeometry,
+            catalogPatch: inferredGeometry.map {
+                CatalogPatch(
+                    geometry: $0,
+                    heuristic: HeuristicPatch(
+                        screenWidth: Int(screenSize.width.rounded()),
+                        safeAreaTop: Int(safeAreaTop.rounded())
+                    ),
+                    modelIdentifier: ModelIdentifierPatch(id: modelIdentifier)
+                )
+            }
+        )
+    }
+
+    static func probeValue(_ value: CGFloat) -> Double {
+        let raw = Double(value)
+        let rounded = raw.rounded()
+        if abs(raw - rounded) < 0.000_1 {
+            return rounded
+        }
+
+        return raw
+    }
+}
+
+private struct ProbeRect: Encodable {
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+
+    init(_ rect: CGRect) {
+        x = TopCutoutCatalogProbeReport.probeValue(rect.origin.x)
+        y = TopCutoutCatalogProbeReport.probeValue(rect.origin.y)
+        width = TopCutoutCatalogProbeReport.probeValue(rect.width)
+        height = TopCutoutCatalogProbeReport.probeValue(rect.height)
+    }
+}
+
+private struct ProbeSize: Encodable {
+    let width: Double
+    let height: Double
+
+    init(size: CGSize) {
+        width = TopCutoutCatalogProbeReport.probeValue(size.width)
+        height = TopCutoutCatalogProbeReport.probeValue(size.height)
+    }
+}
+
+private struct ProbeGeometry: Encodable {
+    let style: String
+    let width: Double
+    let height: Double
+    let topInset: Double
+
+    init(geometry: TopCutoutGeometry) {
+        style = geometry.style.rawValue
+        width = TopCutoutCatalogProbeReport.probeValue(geometry.size.width)
+        height = TopCutoutCatalogProbeReport.probeValue(geometry.size.height)
+        topInset = TopCutoutCatalogProbeReport.probeValue(geometry.topInset)
+    }
+
+    init(rect: CGRect) {
+        let inferredStyle: TopCutoutStyle
+        if rect.minY > 0.5 {
+            inferredStyle = .dynamicIsland
+        } else if rect.width >= 180 {
+            inferredStyle = .wideNotch
+        } else {
+            inferredStyle = .narrowNotch
+        }
+
+        style = inferredStyle.rawValue
+        width = TopCutoutCatalogProbeReport.probeValue(rect.width)
+        height = TopCutoutCatalogProbeReport.probeValue(rect.height)
+        topInset = TopCutoutCatalogProbeReport.probeValue(rect.minY)
+    }
+
+    func matches(_ other: ProbeGeometry) -> Bool {
+        style == other.style &&
+        abs(width - other.width) < 0.000_1 &&
+        abs(height - other.height) < 0.000_1 &&
+        abs(topInset - other.topInset) < 0.000_1
+    }
+}
+
+private struct CatalogPatch: Encodable {
+    let geometry: ProbeGeometry
+    let heuristic: HeuristicPatch
+    let modelIdentifier: ModelIdentifierPatch
+}
+
+private struct HeuristicPatch: Encodable {
+    let screenWidth: Int
+    let safeAreaTop: Int
+}
+
+private struct ModelIdentifierPatch: Encodable {
+    let id: String
+}
+
+private enum TopCutoutCatalogProbe {
+    static var deviceName: String {
+        let environment = ProcessInfo.processInfo.environment
+
+        if let name = environment["SIMULATOR_DEVICE_NAME"], !name.isEmpty {
+            return name
+        }
+
+        return UIDevice.current.name
+    }
+
+    static var exclusionRect: CGRect? = {
+        let screen = UIScreen.main
+
+        guard let exclusionArea = screen.value(forKey: "_" + "exclusion" + "Area") as? NSObject,
+              let rectValue = exclusionArea.value(forKey: "rect") else {
+            print("[TopCutoutDemo] Exclusion area not available; returning nil")
+            return nil
+        }
+
+        if let rect = rectValue as? CGRect {
+            print("[TopCutoutDemo] Retrieved exclusionRect: \(rect)")
+            return rect
+        }
+
+        if let value = rectValue as? NSValue {
+            let rect = value.cgRectValue
+            print("[TopCutoutDemo] Retrieved exclusionRect: \(rect)")
+            return rect
+        }
+
+        print("[TopCutoutDemo] Exclusion area rect had unexpected type: \(type(of: rectValue))")
+        return nil
+    }()
 }
 
 private struct HeaderBlock: View {
@@ -170,6 +403,108 @@ private struct InfoPanel: View {
     }
 }
 
+private struct DebugProbePanel: View {
+    let report: TopCutoutCatalogProbeReport
+    let copyFeedback: String
+    let onCopy: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Simulator Probe")
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+
+                    Text("Reads `UIScreen._exclusionArea.rect`, infers a catalog geometry, and copies a JSON payload you can paste back into `top_cutout_catalog.json`.")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                }
+
+                Spacer(minLength: 12)
+
+                Button(action: onCopy) {
+                    Text(copyFeedback)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color(red: 1, green: 0.45, blue: 0.38))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            MetricRow(label: "Device", value: report.deviceName)
+            MetricRow(label: "Model", value: report.modelIdentifier)
+            MetricRow(
+                label: "Screen",
+                value: "\(formatted(report.screenSize.width)) x \(formatted(report.screenSize.height)) pt"
+            )
+            MetricRow(label: "Safe Area Top", value: "\(formatted(report.safeAreaTop)) pt")
+            MetricRow(label: "Exclusion Rect", value: report.exclusionSummary)
+            MetricRow(label: "Inferred Geometry", value: report.inferredGeometrySummary)
+
+            if let resolvedSource = report.resolvedSource {
+                MetricRow(label: "Resolved Source", value: resolvedSource)
+            }
+
+            if let matchesResolvedGeometry = report.matchesResolvedGeometry {
+                MetricRow(
+                    label: "Matches Resolved",
+                    value: matchesResolvedGeometry ? "yes" : "no"
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+        )
+    }
+
+    private func formatted(_ value: Double) -> String {
+        if abs(value.rounded() - value) < 0.000_1 {
+            return String(Int(value.rounded()))
+        }
+
+        return String(format: "%.1f", value)
+    }
+}
+
+private extension TopCutoutCatalogProbeReport {
+    var exclusionSummary: String {
+        guard let exclusionRect else {
+            return "Unavailable"
+        }
+
+        return "x \(format(exclusionRect.x)) y \(format(exclusionRect.y)) w \(format(exclusionRect.width)) h \(format(exclusionRect.height))"
+    }
+
+    var inferredGeometrySummary: String {
+        guard let inferredGeometry else {
+            return "Unavailable"
+        }
+
+        return "\(inferredGeometry.style) \(format(inferredGeometry.width)) x \(format(inferredGeometry.height)) @ \(format(inferredGeometry.topInset))"
+    }
+
+    private func format(_ value: Double) -> String {
+        if abs(value.rounded() - value) < 0.000_1 {
+            return String(Int(value.rounded()))
+        }
+
+        return String(format: "%.1f", value)
+    }
+}
+
 private struct UnresolvedPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -191,6 +526,23 @@ private struct UnresolvedPanel: View {
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 }
         )
+    }
+}
+
+private struct DebugExclusionOverlay: View {
+    let rect: ProbeRect
+
+    var body: some View {
+        Rectangle()
+            .stroke(
+                Color(red: 0.42, green: 0.93, blue: 1),
+                style: StrokeStyle(lineWidth: 2, dash: [7, 4])
+            )
+            .frame(width: CGFloat(rect.width), height: CGFloat(rect.height))
+            .position(
+                x: CGFloat(rect.x + (rect.width * 0.5)),
+                y: CGFloat(rect.y + (rect.height * 0.5))
+            )
     }
 }
 
@@ -450,4 +802,3 @@ private struct TopNotchShape: Shape {
         return path
     }
 }
-
