@@ -14,7 +14,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "TopCutout"
+            name: "TopCutout",
+            path: "Sources/TopCutout"
         ),
     ]
 )
