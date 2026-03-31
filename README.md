@@ -8,16 +8,6 @@ It is useful when you need more than safe-area insets alone. Instead of only kno
 
 ![TopCutout demo](./screenshot.jpg)
 
-## Why This Exists
-
-Safe-area insets tell you the protected region, but they do not tell you the shape or width of the visible hardware cutout. That matters for interfaces such as:
-
-- camera and capture overlays
-- custom status-bar treatments
-- controls that sit to the left and right of the notch
-- immersive media UIs that need precise top-edge alignment
-- Dynamic Island-aware layouts and prototypes
-
 ## Features
 
 - Runtime lookup for the current device using the model identifier
@@ -35,15 +25,13 @@ Safe-area insets tell you the protected region, but they do not tell you the sha
 
 ### Swift Package Manager
 
-Add the package in Xcode with `File > Add Package Dependencies...`, or declare it in `Package.swift`:
+Add the package in Xcode with `File > Add Package Dependencies...` and use:
 
-```swift
-dependencies: [
-    .package(url: "https://github.com/rijieli/TopCutout.git", branch: "main")
-]
+```text
+https://github.com/rijieli/TopCutout.git
 ```
 
-Then add the product to your target:
+Then add the `TopCutout` product to your target:
 
 ```swift
 .target(
@@ -125,22 +113,18 @@ python3 collect_dynamic_island_simulator_info.py
 
 Use it to:
 
-- visualize the resolved cutout region
-- inspect debug output for the current simulator
-- validate spacing assumptions when updating generated data
+- Visualize the resolved cutout region
+- Inspect debug output for the current simulator
+- Validate spacing assumptions when updating generated data
 
 ## Contributing
 
 Contributions are most useful when they improve one of these areas:
 
-- newly released device support
-- corrections to generated geometry
-- better demo coverage
-- tests and validation tooling
-- documentation and examples
+- Newly released device support
+- Corrections to generated geometry
+- Better demo coverage
+- Tests and validation tooling
+- Documentation and examples
 
 When changing generated data, keep the generated Swift files and the source data in sync.
-
-## Status
-
-The package is intentionally focused: one small runtime API, generated device metadata, and tooling to refresh the catalog as Simulator data changes.

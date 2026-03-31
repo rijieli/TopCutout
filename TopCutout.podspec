@@ -7,7 +7,7 @@ TopCutout is an iOS library that exposes generated top cutout metadata for iPhon
 It provides runtime lookup for the current device, cutout geometry helpers, and optional sensor housing paths.
   DESC
   s.homepage         = 'https://github.com/rijieli/TopCutout'
-  s.license          = { :type => 'Custom', :text => 'No LICENSE file has been added to this repository yet.' }
+  s.license          = { :type => 'Apache-2.0', :file => 'LICENSE' }
   s.author           = 'rijieli'
   s.source           = { :git => 'https://github.com/rijieli/TopCutout.git', :tag => s.version.to_s }
 
