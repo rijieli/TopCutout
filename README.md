@@ -6,6 +6,8 @@ It is useful when you need more than safe-area insets alone. Instead of only kno
 
 **NO Private API.**
 
+![TopCutout demo](./screenshot.jpg)
+
 ## Why This Exists
 
 Safe-area insets tell you the protected region, but they do not tell you the shape or width of the visible hardware cutout. That matters for interfaces such as:
