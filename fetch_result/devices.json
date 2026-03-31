@@ -264,100 +264,130 @@
     "model_identifier": "iPhone15,2",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone15,3": {
     "model_identifier": "iPhone15,3",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone15,4": {
     "model_identifier": "iPhone15,4",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone15,5": {
     "model_identifier": "iPhone15,5",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone16,1": {
     "model_identifier": "iPhone16,1",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone16,2": {
     "model_identifier": "iPhone16,2",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone17,1": {
     "model_identifier": "iPhone17,1",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 14,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone17,2": {
     "model_identifier": "iPhone17,2",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 14,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone17,3": {
     "model_identifier": "iPhone17,3",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone17,4": {
     "model_identifier": "iPhone17,4",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 11.3333,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone17,5": {
@@ -377,40 +407,52 @@
     "model_identifier": "iPhone18,1",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 14,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone18,2": {
     "model_identifier": "iPhone18,2",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 14,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone18,3": {
     "model_identifier": "iPhone18,3",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 14,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125
+      }
     }
   },
   "iPhone18,4": {
     "model_identifier": "iPhone18,4",
     "top_feature": {
       "curve_available": false,
-      "geometry_available": false,
+      "geometry_available": true,
       "kind": "dynamic_island",
-      "padding_top_points": null,
-      "size_points": null
+      "padding_top_points": 20,
+      "size_points": {
+        "height": 36.6667,
+        "width": 125.3333
+      }
     }
   },
   "iPhone18,5": {

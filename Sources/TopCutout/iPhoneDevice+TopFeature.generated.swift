@@ -266,82 +266,112 @@ extension IPhoneDevice {
         case .iPhone14Pro:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone14ProMax:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone15:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone15Plus:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone15Pro:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone15ProMax:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone16Pro:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 14
             )
         case .iPhone16ProMax:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 14
             )
         case .iPhone16:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone16Plus:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 11.3333
             )
         case .iPhone16e:
             return IPhoneTopFeatureInfo(
@@ -357,34 +387,46 @@ extension IPhoneDevice {
         case .iPhone17Pro:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 14
             )
         case .iPhone17ProMax:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 14
             )
         case .iPhone17:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125,
+                    height: 36.6667
+                ),
+                paddingTop: 14
             )
         case .iPhoneAir:
             return IPhoneTopFeatureInfo(
                 kind: .dynamicIsland,
-                geometryAvailable: false,
+                geometryAvailable: true,
                 curveAvailable: false,
-                size: nil,
-                paddingTop: nil
+                size: CGSize(
+                    width: 125.3333,
+                    height: 36.6667
+                ),
+                paddingTop: 20
             )
         case .iPhone17e:
             return IPhoneTopFeatureInfo(

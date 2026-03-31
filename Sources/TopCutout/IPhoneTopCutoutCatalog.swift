@@ -21,15 +21,32 @@ public enum IPhoneTopCutoutCatalog {
     }
 
     public static func geometry(for modelIdentifier: String) -> TopCutoutGeometry? {
-        generatedMap[modelIdentifier]
+        guard let device = IPhoneDevice(rawValue: modelIdentifier) else {
+            return nil
+        }
+
+        return geometry(for: device.topFeature)
     }
 
-    /// Optional fallback when you want something for unknown future devices.
-    /// This is intentionally conservative.
-    public static func heuristicGeometry(
-        screenSize: CGSize,
-        safeAreaTop: CGFloat
-    ) -> TopCutoutGeometry? {
-        generatedHeuristicGeometry(screenSize: screenSize, safeAreaTop: safeAreaTop)
+    private static func geometry(for topFeature: IPhoneTopFeatureInfo) -> TopCutoutGeometry? {
+        guard let size = topFeature.size, let paddingTop = topFeature.paddingTop else {
+            return nil
+        }
+
+        let style: TopCutoutStyle
+        switch topFeature.kind {
+        case .none:
+            return nil
+        case .dynamicIsland:
+            style = .dynamicIsland
+        case .notch:
+            style = size.width >= 200 ? .wideNotch : .narrowNotch
+        }
+
+        return TopCutoutGeometry(
+            style: style,
+            size: size,
+            topInset: paddingTop
+        )
     }
 }

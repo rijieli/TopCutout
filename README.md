@@ -33,17 +33,7 @@ import TopCutout
 let geometry = IPhoneTopCutoutCatalog.geometry(for: "iPhone15,2")
 ```
 
-For unknown future devices, there is also a heuristic fallback based on screen size and safe area:
-
-```swift
-import TopCutout
-import UIKit
-
-let fallback = IPhoneTopCutoutCatalog.heuristicGeometry(
-    screenSize: UIScreen.main.bounds.size,
-    safeAreaTop: view.safeAreaInsets.top
-)
-```
+The geometry table is generated from simulator device data and runtime probes for Dynamic Island devices.
 
 ## Use Cases
 

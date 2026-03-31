@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_ROOT = REPO_ROOT / "fetch_result"
 DEVICES_OUTPUT_ROOT = OUTPUT_ROOT / "devices"
 MANIFEST_PATH = OUTPUT_ROOT / "devices.json"
+SIMULATOR_DYNAMIC_ISLAND_INFO_PATH = REPO_ROOT / "simulator_dynamic_island_info.json"
 IPHONE_DEVICE_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice.generated.swift"
 IPHONE_DEVICE_PATH_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+Path.generated.swift"
 IPHONE_DEVICE_SCREEN_INFO_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+ScreenInfo.generated.swift"
@@ -132,6 +133,52 @@ def copy_file(src: Path, dst_dir: Path) -> Path:
     dst = dst_dir / src.name
     shutil.copy2(src, dst)
     return dst
+
+
+def load_simulator_dynamic_island_info() -> dict[str, dict]:
+    if not SIMULATOR_DYNAMIC_ISLAND_INFO_PATH.exists():
+        return {}
+
+    with SIMULATOR_DYNAMIC_ISLAND_INFO_PATH.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    devices = payload.get("devices", payload)
+    if not isinstance(devices, dict):
+        fail(
+            "simulator_dynamic_island_info.json must be an object or contain a top-level 'devices' object"
+        )
+
+    result: dict[str, dict] = {}
+    for model_identifier, device_info in devices.items():
+        if not isinstance(device_info, dict):
+            continue
+
+        probe_report = device_info.get("probe_report", device_info)
+        if not isinstance(probe_report, dict):
+            continue
+
+        exclusion_rect = probe_report.get("exclusionRect")
+        if not isinstance(exclusion_rect, dict):
+            continue
+
+        try:
+            width = round_number(float(exclusion_rect["width"]))
+            height = round_number(float(exclusion_rect["height"]))
+            top = round_number(float(exclusion_rect["y"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+        result[model_identifier] = {
+            "device_name": device_info.get("device_name") or probe_report.get("deviceName"),
+            "probe_report": probe_report,
+            "size_points": {
+                "width": width,
+                "height": height,
+            },
+            "padding_top_points": top,
+        }
+
+    return result
 
 
 def parse_pdf_media_box(pdf_path: Path) -> tuple[float, float] | None:
@@ -790,7 +837,11 @@ def inspect_pdf_asset(
     return result
 
 
-def inspect_device_bundle(bundle_path: Path) -> dict | None:
+def inspect_device_bundle(
+    bundle_path: Path,
+    *,
+    simulator_dynamic_island_info: dict[str, dict],
+) -> dict | None:
     resources_dir = bundle_path / "Contents/Resources"
     profile_path = resources_dir / "profile.plist"
     capabilities_path = resources_dir / "capabilities.plist"
@@ -878,6 +929,11 @@ def inspect_device_bundle(bundle_path: Path) -> dict | None:
     scale = float(profile["mainScreenScale"])
     model_identifier = profile.get("modelIdentifier") or capabilities.get("modelIdentifier")
 
+    simulator_dynamic_island_probe = simulator_dynamic_island_info.get(model_identifier)
+    if simulator_dynamic_island_probe is not None and top_kind == "dynamic_island":
+        top_size = simulator_dynamic_island_probe["size_points"]
+        top_padding = simulator_dynamic_island_probe["padding_top_points"]
+
     return {
         "device_name": device_name,
         "marketing_name": capabilities.get("marketing-name"),
@@ -904,6 +960,7 @@ def inspect_device_bundle(bundle_path: Path) -> dict | None:
             "padding_top_points": top_padding,
         },
         "top_feature_asset": sensor_bar_asset,
+        "top_feature_simulator_probe": simulator_dynamic_island_probe,
         "_top_feature_asset_name": sensor_bar_name,
         "_top_feature_primary_commands": primary_top_feature_commands,
     }
@@ -920,12 +977,23 @@ def main() -> None:
         shutil.rmtree(OUTPUT_ROOT)
     DEVICES_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
+    simulator_dynamic_island_info = load_simulator_dynamic_island_info()
+    if simulator_dynamic_island_info:
+        print(
+            "Loaded "
+            f"{len(simulator_dynamic_island_info)} simulator Dynamic Island records from "
+            f"{SIMULATOR_DYNAMIC_ISLAND_INFO_PATH}"
+        )
+
     devices: dict[str, dict] = {}
     model_to_function: dict[str, str] = {}
     signature_to_function: dict[str, str] = {}
     function_to_commands: dict[str, list[dict]] = {}
     for bundle_path in sorted(DEVICE_TYPES_ROOT.glob("*.simdevicetype"), key=lambda item: item.name.lower()):
-        inspected = inspect_device_bundle(bundle_path)
+        inspected = inspect_device_bundle(
+            bundle_path,
+            simulator_dynamic_island_info=simulator_dynamic_island_info,
+        )
         if inspected:
             model_identifier = inspected["model_identifier"]
             inspected.pop("_top_feature_asset_name", None)
@@ -946,7 +1014,15 @@ def main() -> None:
         model_identifier: {
             key: value
             for key, value in device.items()
-            if key not in {"device_name", "marketing_name", "product_class", "screen", "top_feature_asset"}
+            if key
+            not in {
+                "device_name",
+                "marketing_name",
+                "product_class",
+                "screen",
+                "top_feature_asset",
+                "top_feature_simulator_probe",
+            }
         }
         for model_identifier, device in devices.items()
     }

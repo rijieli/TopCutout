@@ -81,22 +81,11 @@ struct ContentView: View {
         }
     }
 
-    private func resolvedGeometry(screenSize: CGSize, safeAreaTop: CGFloat) -> ResolvedGeometry? {
+    private func resolvedGeometry(screenSize _: CGSize, safeAreaTop _: CGFloat) -> ResolvedGeometry? {
         if let geometry = IPhoneTopCutoutCatalog.current {
             return ResolvedGeometry(
                 geometry: geometry,
-                source: "Catalog Match",
-                modelIdentifier: IPhoneTopCutoutCatalog.currentModelIdentifier()
-            )
-        }
-
-        if let geometry = IPhoneTopCutoutCatalog.heuristicGeometry(
-            screenSize: screenSize,
-            safeAreaTop: safeAreaTop
-        ) {
-            return ResolvedGeometry(
-                geometry: geometry,
-                source: "Heuristic Fallback",
+                source: "Device Table Match",
                 modelIdentifier: IPhoneTopCutoutCatalog.currentModelIdentifier()
             )
         }
@@ -125,6 +114,29 @@ struct ContentView: View {
         lastLoggedReportKey = report.logKey
         print("[TopCutoutDemo] Debug report:")
         print(report.prettyJSONString)
+        persistDebugReport(report)
+    }
+
+    private func persistDebugReport(_ report: TopCutoutCatalogProbeReport) {
+        let fileManager = FileManager.default
+
+        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("[TopCutoutDemo] Could not resolve documents directory for debug report")
+            return
+        }
+
+        let reportURL = documentsURL.appendingPathComponent("TopCutoutProbeReport.json")
+
+        do {
+            if !fileManager.fileExists(atPath: documentsURL.path) {
+                try fileManager.createDirectory(at: documentsURL, withIntermediateDirectories: true)
+            }
+
+            try report.prettyJSONString.write(to: reportURL, atomically: true, encoding: .utf8)
+            print("[TopCutoutDemo] Persisted debug report to: \(reportURL.path)")
+        } catch {
+            print("[TopCutoutDemo] Failed to persist debug report: \(error)")
+        }
     }
 }
 
@@ -139,12 +151,14 @@ private struct TopCutoutCatalogProbeReport: Encodable {
     let modelIdentifier: String
     let screenSize: ProbeSize
     let safeAreaTop: Double
+    let displayConfigurationClass: String?
+    let displayConfigurationDescription: String?
+    let displayInfoProvider: ProbeDisplayInfoProvider?
     let exclusionRect: ProbeRect?
     let inferredGeometry: ProbeGeometry?
     let resolvedGeometry: ProbeGeometry?
     let resolvedSource: String?
     let matchesResolvedGeometry: Bool?
-    let catalogPatch: CatalogPatch?
 
     var logKey: String {
         let rectKey = exclusionRect.map { "\($0.x),\($0.y),\($0.width),\($0.height)" } ?? "none"
@@ -169,6 +183,8 @@ private struct TopCutoutCatalogProbeReport: Encodable {
         resolved: ResolvedGeometry?
     ) -> TopCutoutCatalogProbeReport {
         let modelIdentifier = IPhoneTopCutoutCatalog.currentModelIdentifier()
+        let displayConfiguration = TopCutoutCatalogProbe.displayConfiguration
+        let displayInfoProvider = TopCutoutCatalogProbe.displayInfoProvider
         let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
         let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
         let resolvedGeometry = resolved.map { ProbeGeometry(geometry: $0.geometry) }
@@ -181,21 +197,14 @@ private struct TopCutoutCatalogProbeReport: Encodable {
             modelIdentifier: modelIdentifier,
             screenSize: ProbeSize(size: screenSize),
             safeAreaTop: Self.probeValue(safeAreaTop),
+            displayConfigurationClass: displayConfiguration.map { String(describing: type(of: $0)) },
+            displayConfigurationDescription: displayConfiguration.map { String(describing: $0) },
+            displayInfoProvider: displayInfoProvider.map(ProbeDisplayInfoProvider.init),
             exclusionRect: exclusionRect,
             inferredGeometry: inferredGeometry,
             resolvedGeometry: resolvedGeometry,
             resolvedSource: resolved?.source,
-            matchesResolvedGeometry: matchesResolvedGeometry,
-            catalogPatch: inferredGeometry.map {
-                CatalogPatch(
-                    geometry: $0,
-                    heuristic: HeuristicPatch(
-                        screenWidth: Int(screenSize.width.rounded()),
-                        safeAreaTop: Int(safeAreaTop.rounded())
-                    ),
-                    modelIdentifier: ModelIdentifierPatch(id: modelIdentifier)
-                )
-            }
+            matchesResolvedGeometry: matchesResolvedGeometry
         )
     }
 
@@ -221,6 +230,99 @@ private struct ProbeRect: Encodable {
         y = TopCutoutCatalogProbeReport.probeValue(rect.origin.y)
         width = TopCutoutCatalogProbeReport.probeValue(rect.width)
         height = TopCutoutCatalogProbeReport.probeValue(rect.height)
+    }
+
+    init?(_ value: Any?) {
+        if let rect = value as? CGRect {
+            self.init(rect)
+            return
+        }
+
+        if let boxed = value as? NSValue {
+            self.init(boxed.cgRectValue)
+            return
+        }
+
+        return nil
+    }
+}
+
+private struct ProbeDisplayInfoProvider: Encodable {
+    let providerClass: String
+    let providerDescription: String
+    let artworkSubtype: String?
+    let safeAreaInsetsPortrait: ProbeInsets?
+    let safeAreaInsetsLandscapeLeft: ProbeInsets?
+    let safeAreaInsetsLandscapeRight: ProbeInsets?
+    let safeAreaInsetsPortraitUpsideDown: ProbeInsets?
+    let peripheryInsets: ProbeInsets?
+    let systemMinimumMargin: Double?
+    let homeAffordanceOverlayAllowance: Double?
+    let exclusionRect: ProbeRect?
+
+    init(_ provider: NSObject) {
+        providerClass = String(describing: type(of: provider))
+        providerDescription = String(describing: provider)
+        artworkSubtype = ProbeDisplayInfoProvider.stringValue(provider.value(forKey: "artworkSubtype"))
+        safeAreaInsetsPortrait = ProbeInsets(provider.value(forKey: "safeAreaInsetsPortrait"))
+        safeAreaInsetsLandscapeLeft = ProbeInsets(provider.value(forKey: "safeAreaInsetsLandscapeLeft"))
+        safeAreaInsetsLandscapeRight = ProbeInsets(provider.value(forKey: "safeAreaInsetsLandscapeRight"))
+        safeAreaInsetsPortraitUpsideDown = ProbeInsets(provider.value(forKey: "safeAreaInsetsPortraitUpsideDown"))
+        peripheryInsets = ProbeInsets(provider.value(forKey: "peripheryInsets"))
+        systemMinimumMargin = ProbeDisplayInfoProvider.doubleValue(provider.value(forKey: "systemMinimumMargin"))
+        homeAffordanceOverlayAllowance = ProbeDisplayInfoProvider.doubleValue(
+            provider.value(forKey: "homeAffordanceOverlayAllowance")
+        )
+
+        if let exclusionArea = provider.value(forKey: "exclusionArea") as? NSObject {
+            exclusionRect = ProbeRect(exclusionArea.value(forKey: "rect"))
+        } else {
+            exclusionRect = nil
+        }
+    }
+
+    static func doubleValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+
+        if let cgFloat = value as? CGFloat {
+            return Double(cgFloat)
+        }
+
+        return nil
+    }
+
+    static func stringValue(_ value: Any?) -> String? {
+        value.map { String(describing: $0) }
+    }
+}
+
+private struct ProbeInsets: Encodable {
+    let top: Double
+    let left: Double
+    let bottom: Double
+    let right: Double
+
+    init?(_ value: Any?) {
+        if let insets = value as? UIEdgeInsets {
+            self.init(insets)
+            return
+        }
+
+        if let boxed = value as? NSValue {
+            self.init(boxed.uiEdgeInsetsValue)
+            return
+        }
+
+        return nil
+    }
+
+    init(_ insets: UIEdgeInsets) {
+        top = TopCutoutCatalogProbeReport.probeValue(insets.top)
+        left = TopCutoutCatalogProbeReport.probeValue(insets.left)
+        bottom = TopCutoutCatalogProbeReport.probeValue(insets.bottom)
+        right = TopCutoutCatalogProbeReport.probeValue(insets.right)
     }
 }
 
@@ -271,21 +373,6 @@ private struct ProbeGeometry: Encodable {
     }
 }
 
-private struct CatalogPatch: Encodable {
-    let geometry: ProbeGeometry
-    let heuristic: HeuristicPatch
-    let modelIdentifier: ModelIdentifierPatch
-}
-
-private struct HeuristicPatch: Encodable {
-    let screenWidth: Int
-    let safeAreaTop: Int
-}
-
-private struct ModelIdentifierPatch: Encodable {
-    let id: String
-}
-
 private enum TopCutoutCatalogProbe {
     static var deviceName: String {
         let environment = ProcessInfo.processInfo.environment
@@ -320,6 +407,17 @@ private enum TopCutoutCatalogProbe {
         print("[TopCutoutDemo] Exclusion area rect had unexpected type: \(type(of: rectValue))")
         return nil
     }()
+
+    static var displayConfiguration: NSObject? = {
+        let screen = UIScreen.main
+        return screen.value(forKey: "__displayConfiguration") as? NSObject
+    }()
+
+    static var displayInfoProvider: NSObject? = {
+        let screen = UIScreen.main
+        return screen.value(forKey: "_displayInfoProvider") as? NSObject
+    }()
+
 }
 
 private struct HeaderBlock: View {
@@ -352,7 +450,7 @@ private struct InfoPanel: View {
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The overlay position and size come from `IPhoneTopCutoutCatalog.current`, with the package heuristic as fallback.")
+            Text("The overlay position and size come from `IPhoneTopCutoutCatalog.current`, which resolves from the generated device table.")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.74))
 
@@ -416,7 +514,7 @@ private struct DebugProbePanel: View {
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
 
-                    Text("Reads `UIScreen._exclusionArea.rect`, infers a catalog geometry, and copies a JSON payload you can paste back into `top_cutout_catalog.json`.")
+                    Text("Reads `UIScreen._exclusionArea.rect`, infers a cutout geometry, and copies a JSON payload for inspection.")
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(Color.white.opacity(0.72))
                 }
@@ -512,7 +610,7 @@ private struct UnresolvedPanel: View {
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The current device was not matched by the catalog and the heuristic fallback did not return a supported cutout shape.")
+            Text("The current device was not matched by the generated device table, so no supported cutout shape was resolved.")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.74))
         }
