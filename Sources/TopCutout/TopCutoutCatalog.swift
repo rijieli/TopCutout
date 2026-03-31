@@ -1,12 +1,12 @@
 import UIKit
 
 public enum TopCutoutCatalog {
-    public static let screen: IPhoneScreenInfo? = {
+    public static let screen: ScreenInfo? = {
         screenInfo(for: currentModelIdentifier())
     }()
 
-    public static let current: IPhoneTopFeatureInfo? = {
-        screen?.topFeature
+    public static let current: TopCutoutInfo? = {
+        screen?.topCutout
     }()
 
     private static func currentModelIdentifier() -> String {
@@ -24,7 +24,7 @@ public enum TopCutoutCatalog {
         }
     }
 
-    private static func screenInfo(for modelIdentifier: String) -> IPhoneScreenInfo? {
-        IPhoneDevice(rawValue: modelIdentifier)?.screenInfo
+    private static func screenInfo(for modelIdentifier: String) -> ScreenInfo? {
+        Device(rawValue: modelIdentifier)?.screen
     }
 }

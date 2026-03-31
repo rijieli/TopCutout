@@ -13,21 +13,21 @@ It gives you the size and top inset for the visible notch or Dynamic Island so y
 
 ## Main API
 
-Use `TopCutoutCatalog` to fetch the current screen and top feature:
+Use `TopCutoutCatalog` to fetch the current screen and top cutout:
 
 ```swift
 import TopCutout
 
-if let topFeature = TopCutoutCatalog.current {
-    print(topFeature.kind)         // .notch or .dynamicIsland
-    print(topFeature.size)         // CGSize for the top cutout
-    print(topFeature.paddingTop)   // Distance from the top edge
+if let topCutout = TopCutoutCatalog.current {
+    print(topCutout.kind)         // .notch or .dynamicIsland
+    print(topCutout.size)         // CGSize for the top cutout
+    print(topCutout.paddingTop)   // Distance from the top edge
 }
 
 if let screen = TopCutoutCatalog.screen {
     print(screen.points)           // logical screen size
     print(screen.pixels)           // pixel size
-    print(screen.topFeature.kind)  // same top-feature data via screen
+    print(screen.topCutout.kind)   // same top-cutout data via screen
 }
 ```
 

@@ -26,8 +26,8 @@ struct ContentView: View {
                 resolved: resolved
             )
             let cutoutBottom = resolved.flatMap { resolved in
-                guard let size = resolved.topFeature.size,
-                      let paddingTop = resolved.topFeature.paddingTop else {
+                guard let size = resolved.topCutout.size,
+                      let paddingTop = resolved.topCutout.paddingTop else {
                     return nil
                 }
                 return paddingTop + size.height
@@ -38,7 +38,7 @@ struct ContentView: View {
 
                 if let resolved {
                     LiveCutoutOverlay(
-                        topFeature: resolved.topFeature,
+                        topCutout: resolved.topCutout,
                         isGlowing: isGlowing
                     )
                     .allowsHitTesting(false)
@@ -88,9 +88,9 @@ struct ContentView: View {
     }
 
     private func resolvedGeometry(screenSize _: CGSize, safeAreaTop _: CGFloat) -> ResolvedGeometry? {
-        if let topFeature = TopCutoutCatalog.current {
+        if let topCutout = TopCutoutCatalog.current {
             return ResolvedGeometry(
-                topFeature: topFeature,
+                topCutout: topCutout,
                 source: "Device Table Match",
                 modelIdentifier: TopCutoutDemoProbe.currentModelIdentifier()
             )
@@ -147,7 +147,7 @@ struct ContentView: View {
 }
 
 private struct ResolvedGeometry {
-    let topFeature: IPhoneTopFeatureInfo
+    let topCutout: TopCutoutCatalog.TopCutoutInfo
     let source: String
     let modelIdentifier: String
 }
@@ -193,7 +193,7 @@ private struct TopCutoutCatalogProbeReport: Encodable {
         let displayInfoProvider = TopCutoutCatalogProbe.displayInfoProvider
         let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
         let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
-        let resolvedGeometry = resolved.map { ProbeGeometry(topFeature: $0.topFeature) }
+        let resolvedGeometry = resolved.map { ProbeGeometry(topCutout: $0.topCutout) }
         let matchesResolvedGeometry = inferredGeometry.flatMap { inferred in
             resolvedGeometry.map { inferred.matches($0) }
         }
@@ -348,15 +348,15 @@ private struct ProbeGeometry: Encodable {
     let height: Double
     let topInset: Double
 
-    init(topFeature: IPhoneTopFeatureInfo) {
-        style = topFeature.kind.rawValue
-        width = TopCutoutCatalogProbeReport.probeValue(topFeature.size?.width ?? 0)
-        height = TopCutoutCatalogProbeReport.probeValue(topFeature.size?.height ?? 0)
-        topInset = TopCutoutCatalogProbeReport.probeValue(topFeature.paddingTop ?? 0)
+    init(topCutout: TopCutoutCatalog.TopCutoutInfo) {
+        style = topCutout.kind.rawValue
+        width = TopCutoutCatalogProbeReport.probeValue(topCutout.size?.width ?? 0)
+        height = TopCutoutCatalogProbeReport.probeValue(topCutout.size?.height ?? 0)
+        topInset = TopCutoutCatalogProbeReport.probeValue(topCutout.paddingTop ?? 0)
     }
 
     init(rect: CGRect) {
-        let inferredKind: IPhoneTopFeatureKind
+        let inferredKind: TopCutoutCatalog.TopCutoutKind
         if rect.minY > 0.5 {
             inferredKind = .dynamicIsland
         } else {
@@ -466,10 +466,10 @@ private struct InfoPanel: View {
     let resolved: ResolvedGeometry
 
     var body: some View {
-        let topFeature = resolved.topFeature
+        let topCutout = resolved.topCutout
 
         VStack(alignment: .leading, spacing: 14) {
-            Text(title(for: topFeature.kind))
+            Text(title(for: topCutout.kind))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
@@ -481,13 +481,13 @@ private struct InfoPanel: View {
             MetricRow(label: "Model", value: resolved.modelIdentifier)
             MetricRow(
                 label: "Geometry",
-                value: geometryLabel(for: topFeature)
+                value: geometryLabel(for: topCutout)
             )
             MetricRow(
                 label: "Top Inset",
-                value: topInsetLabel(for: topFeature)
+                value: topInsetLabel(for: topCutout)
             )
-            MetricRow(label: "Kind", value: kindLabel(topFeature.kind))
+            MetricRow(label: "Kind", value: kindLabel(topCutout.kind))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
@@ -501,7 +501,7 @@ private struct InfoPanel: View {
         )
     }
 
-    private func title(for kind: IPhoneTopFeatureKind) -> String {
+    private func title(for kind: TopCutoutCatalog.TopCutoutKind) -> String {
         switch kind {
         case .dynamicIsland:
             return "Detected Dynamic Island"
@@ -512,7 +512,7 @@ private struct InfoPanel: View {
         }
     }
 
-    private func kindLabel(_ kind: IPhoneTopFeatureKind) -> String {
+    private func kindLabel(_ kind: TopCutoutCatalog.TopCutoutKind) -> String {
         switch kind {
         case .dynamicIsland:
             return "dynamicIsland"
@@ -523,16 +523,16 @@ private struct InfoPanel: View {
         }
     }
 
-    private func geometryLabel(for topFeature: IPhoneTopFeatureInfo) -> String {
-        guard let size = topFeature.size else {
+    private func geometryLabel(for topCutout: TopCutoutCatalog.TopCutoutInfo) -> String {
+        guard let size = topCutout.size else {
             return "Unavailable"
         }
 
         return "\(Int(size.width)) x \(Int(size.height)) pt"
     }
 
-    private func topInsetLabel(for topFeature: IPhoneTopFeatureInfo) -> String {
-        guard let paddingTop = topFeature.paddingTop else {
+    private func topInsetLabel(for topCutout: TopCutoutCatalog.TopCutoutInfo) -> String {
+        guard let paddingTop = topCutout.paddingTop else {
             return "Unavailable"
         }
 
@@ -703,14 +703,14 @@ private struct MetricRow: View {
 }
 
 private struct LiveCutoutOverlay: View {
-    let topFeature: IPhoneTopFeatureInfo
+    let topCutout: TopCutoutCatalog.TopCutoutInfo
     let isGlowing: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let bounds = CGRect(origin: .zero, size: proxy.size)
-            let occupiedBand = topFeature.occupiedTopBand(in: bounds)
-            let buttonCenters = topFeature.recommendedButtonCenters(
+            let occupiedBand = topCutout.occupiedTopBand(in: bounds)
+            let buttonCenters = topCutout.recommendedButtonCenters(
                 in: bounds,
                 buttonSize: CGSize(width: 18, height: 18),
                 sidePadding: 16
@@ -751,7 +751,7 @@ private struct LiveCutoutOverlay: View {
                     }
 
                     CutoutGlow(
-                        topFeature: topFeature,
+                        topCutout: topCutout,
                         isGlowing: isGlowing
                     )
                 }
@@ -775,7 +775,7 @@ private struct EarStatusDot: View {
 }
 
 private struct CutoutGlow: View {
-    let topFeature: IPhoneTopFeatureInfo
+    let topCutout: TopCutoutCatalog.TopCutoutInfo
     let isGlowing: Bool
 
     private let glowColor = Color(red: 1, green: 0.19, blue: 0.18)
@@ -783,9 +783,9 @@ private struct CutoutGlow: View {
     var body: some View {
         GeometryReader { proxy in
             let bounds = CGRect(origin: .zero, size: proxy.size)
-            if let cutout = topFeature.rect(in: bounds) {
+            if let cutout = topCutout.rect(in: bounds) {
                 ZStack {
-                    if topFeature.kind == .dynamicIsland {
+                    if topCutout.kind == .dynamicIsland {
                         Capsule()
                             .fill(glowColor.opacity(isGlowing ? 0.58 : 0.34))
                             .frame(
