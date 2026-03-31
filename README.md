@@ -4,6 +4,8 @@
 
 It is useful when you need more than safe-area insets alone. Instead of only knowing how far content should stay away from the top edge, you can retrieve the cutout kind, exact cutout size, top padding, and helper geometry for the free space on each side.
 
+**NO Private API.**
+
 ## Why This Exists
 
 Safe-area insets tell you the protected region, but they do not tell you the shape or width of the visible hardware cutout. That matters for interfaces such as:
@@ -26,16 +28,16 @@ Safe-area insets tell you the protected region, but they do not tell you the sha
 ## Requirements
 
 - iOS 15+
-- Swift 5.8+
-- Xcode with Swift Package Manager support
 
 ## Installation
+
+### Swift Package Manager
 
 Add the package in Xcode with `File > Add Package Dependencies...`, or declare it in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "<repository-url>", branch: "main")
+    .package(url: "https://github.com/rijieli/TopCutout.git", branch: "main")
 ]
 ```
 
@@ -50,69 +52,9 @@ Then add the product to your target:
 )
 ```
 
-## Quick Start
+## Main Entry and API
 
-```swift
-import SwiftUI
-import TopCutout
-
-struct CameraHeader: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let bounds = CGRect(origin: .zero, size: proxy.size)
-            let topCutout = TopCutoutCatalog.current
-
-            ZStack(alignment: .top) {
-                Color.black.ignoresSafeArea()
-
-                if let cutoutRect = topCutout?.rect(in: bounds) {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.white.opacity(0.08))
-                        .frame(width: cutoutRect.width, height: cutoutRect.height)
-                        .position(x: cutoutRect.midX, y: cutoutRect.midY)
-                }
-
-                if let centers = topCutout?.recommendedButtonCenters(
-                    in: bounds,
-                    buttonSize: CGSize(width: 32, height: 32)
-                ) {
-                    Image(systemName: "bolt.fill")
-                        .position(centers.leading)
-
-                    Image(systemName: "gearshape.fill")
-                        .position(centers.trailing)
-                }
-            }
-        }
-    }
-}
-```
-
-For simple inspection:
-
-```swift
-import TopCutout
-
-if let topCutout = TopCutoutCatalog.current {
-    print(topCutout.kind)       // .none, .notch, or .dynamicIsland
-    print(topCutout.size)       // CGSize?
-    print(topCutout.paddingTop) // CGFloat?
-}
-
-if let screen = TopCutoutCatalog.screen {
-    print(screen.points)                // logical screen size
-    print(screen.pixels)                // native pixel size
-    print(screen.scale)                 // display scale
-    print(screen.topCutout.kind)        // same cutout data via screen info
-    print(screen.cornerRadiusPoints)    // optional corner radius
-}
-```
-
-## API Overview
-
-### `TopCutoutCatalog`
-
-Primary entry point for runtime lookup.
+`TopCutoutCatalog` is the main runtime entry point.
 
 - `TopCutoutCatalog.current -> TopCutoutInfo?`
 - `TopCutoutCatalog.screen -> ScreenInfo?`
@@ -121,7 +63,7 @@ Both values are `nil` when the current model identifier is not present in the ge
 
 ### `TopCutoutInfo`
 
-Represents the top hardware cutout for a screen.
+Represents the resolved top cutout for the current screen.
 
 - `kind`
 - `geometryAvailable`
@@ -136,7 +78,7 @@ Represents the top hardware cutout for a screen.
 
 ### `ScreenInfo`
 
-Screen metadata paired with the cutout data.
+Represents screen metadata plus top cutout data.
 
 - `points`
 - `pixels`
@@ -147,31 +89,13 @@ Screen metadata paired with the cutout data.
 
 ### `TopCutoutCatalog.Device`
 
-Generated catalog of known iPhone model identifiers with:
+Generated device catalog with:
 
 - `displayName`
 - `screen`
 - `sensorHousingPath`
 
 The current generated catalog includes 42 iPhone identifiers.
-
-## How The Data Is Built
-
-This package is driven by generated source files in [`Sources/TopCutout`](./Sources/TopCutout).
-
-The repository includes tooling that:
-
-1. reads Simulator device bundles from CoreSimulator
-2. extracts screen and sensor housing assets
-3. probes Dynamic Island simulator devices using the demo app
-4. writes generated Swift sources consumed by the package
-
-Relevant scripts:
-
-- [`inspect_simulator_topcutouts.py`](./inspect_simulator_topcutouts.py)
-- [`collect_dynamic_island_simulator_info.py`](./collect_dynamic_island_simulator_info.py)
-
-This keeps the runtime API small while letting the catalog be refreshed from newer Simulator data.
 
 ## Development
 
@@ -202,23 +126,6 @@ Use it to:
 - visualize the resolved cutout region
 - inspect debug output for the current simulator
 - validate spacing assumptions when updating generated data
-
-## Project Layout
-
-- [`Sources/TopCutout`](./Sources/TopCutout): package source and generated catalog files
-- [`TopCutoutDemo`](./TopCutoutDemo): example app and probe target
-- [`fetch_result`](./fetch_result): copied Simulator assets and generated manifests
-- [`simulator_dynamic_island_info.json`](./simulator_dynamic_island_info.json): stored probe results used during generation
-
-## Limitations
-
-- The package currently targets iPhone metadata only.
-- Lookup is table-driven, so unknown future model identifiers return `nil`.
-- Geometry is derived from Simulator assets and simulator probing, not measured from physical-device capture.
-- `sensorHousingPath` is optional and only available where source curve data exists.
-- There is no dedicated Swift test target yet; the demo app and generation workflow are the current validation path.
-
-If you use this for pixel-critical production UI, validate the result on the device classes you care about.
 
 ## Contributing
 
