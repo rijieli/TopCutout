@@ -25,7 +25,7 @@ public enum IPhoneTopCutoutCatalog {
             return nil
         }
 
-        return geometry(for: device.topFeature)
+        return geometry(for: device.screenInfo.topFeature)
     }
 
     private static func geometry(for topFeature: IPhoneTopFeatureInfo) -> TopCutoutGeometry? {

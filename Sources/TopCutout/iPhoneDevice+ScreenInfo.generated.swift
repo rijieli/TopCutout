@@ -16,7 +16,14 @@ extension IPhoneDevice {
                     width: 375,
                     height: 667
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone6sPlus:
             return IPhoneScreenInfo(
@@ -30,7 +37,14 @@ extension IPhoneDevice {
                     width: 414,
                     height: 736
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhoneSE1stGeneration:
             return IPhoneScreenInfo(
@@ -44,7 +58,14 @@ extension IPhoneDevice {
                     width: 320,
                     height: 568
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone7:
             return IPhoneScreenInfo(
@@ -58,7 +79,14 @@ extension IPhoneDevice {
                     width: 375,
                     height: 667
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone7Plus:
             return IPhoneScreenInfo(
@@ -72,7 +100,14 @@ extension IPhoneDevice {
                     width: 414,
                     height: 736
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone8:
             return IPhoneScreenInfo(
@@ -86,7 +121,14 @@ extension IPhoneDevice {
                     width: 375,
                     height: 667
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone8Plus:
             return IPhoneScreenInfo(
@@ -100,7 +142,14 @@ extension IPhoneDevice {
                     width: 414,
                     height: 736
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhoneX:
             return IPhoneScreenInfo(
@@ -114,7 +163,17 @@ extension IPhoneDevice {
                     width: 375,
                     height: 812
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 223,
+                        height: 30
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhoneXs:
             return IPhoneScreenInfo(
@@ -128,7 +187,17 @@ extension IPhoneDevice {
                     width: 375,
                     height: 812
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 223,
+                        height: 30
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhoneXsMax:
             return IPhoneScreenInfo(
@@ -142,7 +211,17 @@ extension IPhoneDevice {
                     width: 414,
                     height: 896
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 223,
+                        height: 30
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhoneXR:
             return IPhoneScreenInfo(
@@ -156,7 +235,17 @@ extension IPhoneDevice {
                     width: 414,
                     height: 896
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 245,
+                        height: 33
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone11:
             return IPhoneScreenInfo(
@@ -170,7 +259,17 @@ extension IPhoneDevice {
                     width: 414,
                     height: 896
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 245,
+                        height: 33
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone11Pro:
             return IPhoneScreenInfo(
@@ -184,7 +283,17 @@ extension IPhoneDevice {
                     width: 375,
                     height: 812
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 223,
+                        height: 30
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone11ProMax:
             return IPhoneScreenInfo(
@@ -198,7 +307,17 @@ extension IPhoneDevice {
                     width: 414,
                     height: 896
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 223,
+                        height: 30
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhoneSE2ndGeneration:
             return IPhoneScreenInfo(
@@ -212,7 +331,14 @@ extension IPhoneDevice {
                     width: 375,
                     height: 667
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone12Mini:
             return IPhoneScreenInfo(
@@ -226,7 +352,17 @@ extension IPhoneDevice {
                     width: 360,
                     height: 780
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 242,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone12:
             return IPhoneScreenInfo(
@@ -240,7 +376,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 222,
+                        height: 32
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone12Pro:
             return IPhoneScreenInfo(
@@ -254,7 +400,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 222,
+                        height: 32
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone12ProMax:
             return IPhoneScreenInfo(
@@ -268,7 +424,17 @@ extension IPhoneDevice {
                     width: 428,
                     height: 926
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 222,
+                        height: 32
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone13Pro:
             return IPhoneScreenInfo(
@@ -282,7 +448,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 176,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone13ProMax:
             return IPhoneScreenInfo(
@@ -296,7 +472,17 @@ extension IPhoneDevice {
                     width: 428,
                     height: 926
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 174,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone13Mini:
             return IPhoneScreenInfo(
@@ -310,7 +496,17 @@ extension IPhoneDevice {
                     width: 360,
                     height: 780
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 189,
+                        height: 38
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone13:
             return IPhoneScreenInfo(
@@ -324,7 +520,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 176,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhoneSE3rdGeneration:
             return IPhoneScreenInfo(
@@ -338,7 +544,14 @@ extension IPhoneDevice {
                     width: 375,
                     height: 667
                 ),
-                scale: 2
+                scale: 2,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .none,
+                    geometryAvailable: false,
+                    curveAvailable: false,
+                    size: nil,
+                    paddingTop: nil
+                )
             )
         case .iPhone14:
             return IPhoneScreenInfo(
@@ -352,7 +565,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 176,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone14Plus:
             return IPhoneScreenInfo(
@@ -366,7 +589,17 @@ extension IPhoneDevice {
                     width: 428,
                     height: 926
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 174,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone14Pro:
             return IPhoneScreenInfo(
@@ -380,7 +613,17 @@ extension IPhoneDevice {
                     width: 393,
                     height: 852
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone14ProMax:
             return IPhoneScreenInfo(
@@ -394,7 +637,17 @@ extension IPhoneDevice {
                     width: 430,
                     height: 932
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone15:
             return IPhoneScreenInfo(
@@ -408,7 +661,17 @@ extension IPhoneDevice {
                     width: 393,
                     height: 852
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone15Plus:
             return IPhoneScreenInfo(
@@ -422,7 +685,17 @@ extension IPhoneDevice {
                     width: 430,
                     height: 932
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone15Pro:
             return IPhoneScreenInfo(
@@ -436,7 +709,17 @@ extension IPhoneDevice {
                     width: 393,
                     height: 852
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone15ProMax:
             return IPhoneScreenInfo(
@@ -450,7 +733,17 @@ extension IPhoneDevice {
                     width: 430,
                     height: 932
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone16Pro:
             return IPhoneScreenInfo(
@@ -464,7 +757,17 @@ extension IPhoneDevice {
                     width: 402,
                     height: 874
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 14
+                )
             )
         case .iPhone16ProMax:
             return IPhoneScreenInfo(
@@ -478,7 +781,17 @@ extension IPhoneDevice {
                     width: 440,
                     height: 956
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 14
+                )
             )
         case .iPhone16:
             return IPhoneScreenInfo(
@@ -492,7 +805,17 @@ extension IPhoneDevice {
                     width: 393,
                     height: 852
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone16Plus:
             return IPhoneScreenInfo(
@@ -506,7 +829,17 @@ extension IPhoneDevice {
                     width: 430,
                     height: 932
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 11.3333
+                )
             )
         case .iPhone16e:
             return IPhoneScreenInfo(
@@ -520,7 +853,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 176,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         case .iPhone17Pro:
             return IPhoneScreenInfo(
@@ -534,7 +877,17 @@ extension IPhoneDevice {
                     width: 402,
                     height: 874
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 14
+                )
             )
         case .iPhone17ProMax:
             return IPhoneScreenInfo(
@@ -548,7 +901,17 @@ extension IPhoneDevice {
                     width: 440,
                     height: 956
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 14
+                )
             )
         case .iPhone17:
             return IPhoneScreenInfo(
@@ -562,7 +925,17 @@ extension IPhoneDevice {
                     width: 402,
                     height: 874
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125,
+                        height: 36.6667
+                    ),
+                    paddingTop: 14
+                )
             )
         case .iPhoneAir:
             return IPhoneScreenInfo(
@@ -576,7 +949,17 @@ extension IPhoneDevice {
                     width: 420,
                     height: 912
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .dynamicIsland,
+                    geometryAvailable: true,
+                    curveAvailable: false,
+                    size: CGSize(
+                        width: 125.3333,
+                        height: 36.6667
+                    ),
+                    paddingTop: 20
+                )
             )
         case .iPhone17e:
             return IPhoneScreenInfo(
@@ -590,7 +973,17 @@ extension IPhoneDevice {
                     width: 390,
                     height: 844
                 ),
-                scale: 3
+                scale: 3,
+                topFeature: IPhoneTopFeatureInfo(
+                    kind: .notch,
+                    geometryAvailable: true,
+                    curveAvailable: true,
+                    size: CGSize(
+                        width: 176,
+                        height: 34
+                    ),
+                    paddingTop: 0
+                )
             )
         }
     }
