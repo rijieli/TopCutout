@@ -9,88 +9,103 @@ import SwiftUI
 import TopCutout
 import UIKit
 
+private let showSimulatorProbeSection = true
+
 struct ContentView: View {
-    @State private var isGlowing = false
     @State private var copyFeedback = "Copy Debug JSON"
     @State private var lastLoggedReportKey: String?
+    @State private var isShowingSimulatorProbeSheet = false
 
     var body: some View {
-        GeometryReader { proxy in
-            let resolved = resolvedGeometry(
-                screenSize: proxy.size,
-                safeAreaTop: proxy.safeAreaInsets.top
-            )
-            let debugReport = TopCutoutCatalogProbeReport.make(
-                screenSize: proxy.size,
-                safeAreaTop: proxy.safeAreaInsets.top,
-                resolved: resolved
-            )
-            let cutoutBottom = resolved.flatMap { resolved in
-                guard let size = resolved.topCutout.size,
-                      let paddingTop = resolved.topCutout.paddingTop else {
-                    return nil
-                }
-                return paddingTop + size.height
-            } ?? proxy.safeAreaInsets.top
+        let resolved = resolvedGeometry()
+        let debugReport = debugProbeReport(for: resolved)
 
-            ZStack(alignment: .top) {
-                DemoBackdrop()
+        ZStack(alignment: .top) {
+            BlueprintBackdrop()
 
-                if let resolved {
-                    LiveCutoutOverlay(
-                        topCutout: resolved.topCutout,
-                        isGlowing: isGlowing
-                    )
+            if let resolved {
+                BlueprintOverlay(resolved: resolved)
+                    .allowsHitTesting(false)
+            }
+
+            if let exclusionRect = debugReport?.exclusionRect {
+                DebugExclusionOverlay(rect: exclusionRect)
                     .allowsHitTesting(false)
                 }
 
-                if let exclusionRect = debugReport.exclusionRect {
-                    DebugExclusionOverlay(rect: exclusionRect)
-                        .allowsHitTesting(false)
+            VStack(spacing: 22) {
+                Spacer()
+
+                HeaderBlock(
+                    showsDebugButton: showSimulatorProbeSection,
+                    onShowDebug: { isShowingSimulatorProbeSheet = true }
+                )
+
+                if resolved == nil {
+                    UnresolvedPanel()
                 }
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 22) {
-                        Spacer()
-                            .frame(height: max(170, cutoutBottom + 108))
-
-                        HeaderBlock()
-
-                        if let resolved {
-                            InfoPanel(resolved: resolved)
-                        } else {
-                            UnresolvedPanel()
-                        }
-
-                        DebugProbePanel(
-                            report: debugReport,
-                            copyFeedback: copyFeedback,
-                            onCopy: { copyDebugReport(debugReport) }
-                        )
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 20)
-                    .padding(.bottom, 32)
-                }
             }
-            .ignoresSafeArea()
-            .task(id: debugReport.logKey) {
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, 20)
+            .padding(.bottom, 32)
+            .multilineTextAlignment(.center)
+        }
+        .ignoresSafeArea()
+        .task(id: debugReport?.logKey) {
+            if let debugReport {
                 logDebugReportIfNeeded(debugReport)
             }
         }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                isGlowing = true
+        .sheet(isPresented: $isShowingSimulatorProbeSheet) {
+            if let debugReport {
+                if #available(iOS 16.0, *) {
+                    DebugProbePanel(
+                        report: debugReport,
+                        copyFeedback: copyFeedback,
+                        onCopy: { copyDebugReport(debugReport) }
+                    )
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+                } else {
+                    DebugProbePanel(
+                        report: debugReport,
+                        copyFeedback: copyFeedback,
+                        onCopy: { copyDebugReport(debugReport) }
+                    )
+                }
             }
         }
+        .preferredColorScheme(.dark)
     }
 
-    private func resolvedGeometry(screenSize _: CGSize, safeAreaTop _: CGFloat) -> ResolvedGeometry? {
-        if let topCutout = TopCutoutCatalog.current {
+    private var currentSafeAreaTop: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.top ?? 0
+    }
+
+    private func debugProbeReport(for resolved: ResolvedGeometry?) -> TopCutoutCatalogProbeReport? {
+        guard showSimulatorProbeSection else {
+            return nil
+        }
+
+        let screenSize = resolved?.screenInfo.points ?? UIScreen.main.bounds.size
+        return TopCutoutCatalogProbeReport.make(
+            screenSize: screenSize,
+            safeAreaTop: currentSafeAreaTop,
+            resolved: resolved
+        )
+    }
+
+    private func resolvedGeometry() -> ResolvedGeometry? {
+        if let screenInfo = TopCutoutCatalog.screen {
             return ResolvedGeometry(
-                topCutout: topCutout,
+                topCutout: screenInfo.topCutout,
+                screenInfo: screenInfo,
                 source: "Device Table Match",
                 modelIdentifier: TopCutoutDemoProbe.currentModelIdentifier()
             )
@@ -98,7 +113,6 @@ struct ContentView: View {
 
         return nil
     }
-
     private func copyDebugReport(_ report: TopCutoutCatalogProbeReport) {
         let payload = report.prettyJSONString
         UIPasteboard.general.string = payload
@@ -146,86 +160,7 @@ struct ContentView: View {
     }
 }
 
-private struct ResolvedGeometry {
-    let topCutout: TopCutoutCatalog.TopCutoutInfo
-    let source: String
-    let modelIdentifier: String
-}
-
-private struct TopCutoutCatalogProbeReport: Encodable {
-    let deviceName: String
-    let modelIdentifier: String
-    let screenSize: ProbeSize
-    let safeAreaTop: Double
-    let displayConfigurationClass: String?
-    let displayConfigurationDescription: String?
-    let displayInfoProvider: ProbeDisplayInfoProvider?
-    let exclusionRect: ProbeRect?
-    let inferredGeometry: ProbeGeometry?
-    let resolvedGeometry: ProbeGeometry?
-    let resolvedSource: String?
-    let matchesResolvedGeometry: Bool?
-
-    var logKey: String {
-        let rectKey = exclusionRect.map { "\($0.x),\($0.y),\($0.width),\($0.height)" } ?? "none"
-        return "\(modelIdentifier)|\(screenSize.width)|\(screenSize.height)|\(safeAreaTop)|\(rectKey)|\(resolvedSource ?? "none")"
-    }
-
-    var prettyJSONString: String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-
-        guard let data = try? encoder.encode(self),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{ \"error\": \"Failed to encode debug report\" }"
-        }
-
-        return string
-    }
-
-    static func make(
-        screenSize: CGSize,
-        safeAreaTop: CGFloat,
-        resolved: ResolvedGeometry?
-    ) -> TopCutoutCatalogProbeReport {
-        let modelIdentifier = TopCutoutDemoProbe.currentModelIdentifier()
-        let displayConfiguration = TopCutoutCatalogProbe.displayConfiguration
-        let displayInfoProvider = TopCutoutCatalogProbe.displayInfoProvider
-        let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
-        let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
-        let resolvedGeometry = resolved.map { ProbeGeometry(topCutout: $0.topCutout) }
-        let matchesResolvedGeometry = inferredGeometry.flatMap { inferred in
-            resolvedGeometry.map { inferred.matches($0) }
-        }
-
-        return TopCutoutCatalogProbeReport(
-            deviceName: TopCutoutCatalogProbe.deviceName,
-            modelIdentifier: modelIdentifier,
-            screenSize: ProbeSize(size: screenSize),
-            safeAreaTop: Self.probeValue(safeAreaTop),
-            displayConfigurationClass: displayConfiguration.map { String(describing: type(of: $0)) },
-            displayConfigurationDescription: displayConfiguration.map { String(describing: $0) },
-            displayInfoProvider: displayInfoProvider.map(ProbeDisplayInfoProvider.init),
-            exclusionRect: exclusionRect,
-            inferredGeometry: inferredGeometry,
-            resolvedGeometry: resolvedGeometry,
-            resolvedSource: resolved?.source,
-            matchesResolvedGeometry: matchesResolvedGeometry
-        )
-    }
-
-    static func probeValue(_ value: CGFloat) -> Double {
-        let raw = Double(value)
-        let rounded = raw.rounded()
-        if abs(raw - rounded) < 0.000_1 {
-            return rounded
-        }
-
-        return raw
-    }
-}
-
-private struct ProbeRect: Encodable {
+struct ProbeRect: Encodable {
     let x: Double
     let y: Double
     let width: Double
@@ -253,7 +188,7 @@ private struct ProbeRect: Encodable {
     }
 }
 
-private struct ProbeDisplayInfoProvider: Encodable {
+struct ProbeDisplayInfoProvider: Encodable {
     let providerClass: String
     let providerDescription: String
     let artworkSubtype: String?
@@ -304,161 +239,330 @@ private struct ProbeDisplayInfoProvider: Encodable {
     }
 }
 
-private struct ProbeInsets: Encodable {
-    let top: Double
-    let left: Double
-    let bottom: Double
-    let right: Double
-
-    init?(_ value: Any?) {
-        if let insets = value as? UIEdgeInsets {
-            self.init(insets)
-            return
-        }
-
-        if let boxed = value as? NSValue {
-            self.init(boxed.uiEdgeInsetsValue)
-            return
-        }
-
-        return nil
-    }
-
-    init(_ insets: UIEdgeInsets) {
-        top = TopCutoutCatalogProbeReport.probeValue(insets.top)
-        left = TopCutoutCatalogProbeReport.probeValue(insets.left)
-        bottom = TopCutoutCatalogProbeReport.probeValue(insets.bottom)
-        right = TopCutoutCatalogProbeReport.probeValue(insets.right)
-    }
-}
-
-private struct ProbeSize: Encodable {
-    let width: Double
-    let height: Double
-
-    init(size: CGSize) {
-        width = TopCutoutCatalogProbeReport.probeValue(size.width)
-        height = TopCutoutCatalogProbeReport.probeValue(size.height)
-    }
-}
-
-private struct ProbeGeometry: Encodable {
-    let style: String
-    let width: Double
-    let height: Double
-    let topInset: Double
-
-    init(topCutout: TopCutoutCatalog.TopCutoutInfo) {
-        style = topCutout.kind.rawValue
-        width = TopCutoutCatalogProbeReport.probeValue(topCutout.size?.width ?? 0)
-        height = TopCutoutCatalogProbeReport.probeValue(topCutout.size?.height ?? 0)
-        topInset = TopCutoutCatalogProbeReport.probeValue(topCutout.paddingTop ?? 0)
-    }
-
-    init(rect: CGRect) {
-        let inferredKind: TopCutoutCatalog.TopCutoutKind
-        if rect.minY > 0.5 {
-            inferredKind = .dynamicIsland
-        } else {
-            inferredKind = .notch
-        }
-
-        style = inferredKind.rawValue
-        width = TopCutoutCatalogProbeReport.probeValue(rect.width)
-        height = TopCutoutCatalogProbeReport.probeValue(rect.height)
-        topInset = TopCutoutCatalogProbeReport.probeValue(rect.minY)
-    }
-
-    func matches(_ other: ProbeGeometry) -> Bool {
-        style == other.style &&
-        abs(width - other.width) < 0.000_1 &&
-        abs(height - other.height) < 0.000_1 &&
-        abs(topInset - other.topInset) < 0.000_1
-    }
-}
-
-private enum TopCutoutCatalogProbe {
-    static var deviceName: String {
-        let environment = ProcessInfo.processInfo.environment
-
-        if let name = environment["SIMULATOR_DEVICE_NAME"], !name.isEmpty {
-            return name
-        }
-
-        return UIDevice.current.name
-    }
-
-    static var exclusionRect: CGRect? = {
-        let screen = UIScreen.main
-
-        guard let exclusionArea = screen.value(forKey: "_" + "exclusion" + "Area") as? NSObject,
-              let rectValue = exclusionArea.value(forKey: "rect") else {
-            print("[TopCutoutDemo] Exclusion area not available; returning nil")
-            return nil
-        }
-
-        if let rect = rectValue as? CGRect {
-            print("[TopCutoutDemo] Retrieved exclusionRect: \(rect)")
-            return rect
-        }
-
-        if let value = rectValue as? NSValue {
-            let rect = value.cgRectValue
-            print("[TopCutoutDemo] Retrieved exclusionRect: \(rect)")
-            return rect
-        }
-
-        print("[TopCutoutDemo] Exclusion area rect had unexpected type: \(type(of: rectValue))")
-        return nil
-    }()
-
-    static var displayConfiguration: NSObject? = {
-        let screen = UIScreen.main
-        return screen.value(forKey: "__displayConfiguration") as? NSObject
-    }()
-
-    static var displayInfoProvider: NSObject? = {
-        let screen = UIScreen.main
-        return screen.value(forKey: "_displayInfoProvider") as? NSObject
-    }()
-
-}
-
-private enum TopCutoutDemoProbe {
-    static func currentModelIdentifier() -> String {
-        if let sim = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"], !sim.isEmpty {
-            return sim
-        }
-
-        var systemInfo = utsname()
-        uname(&systemInfo)
-
-        let mirror = Mirror(reflecting: systemInfo.machine)
-        return mirror.children.reduce(into: "") { result, element in
-            guard let value = element.value as? Int8, value != 0 else { return }
-            result.append(Character(UnicodeScalar(UInt8(value))))
-        }
-    }
-}
-
 private struct HeaderBlock: View {
+    let showsDebugButton: Bool
+    let onShowDebug: () -> Void
+
     var body: some View {
         VStack(spacing: 10) {
-            Text("TopCutout Demo")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.72))
-                .textCase(.uppercase)
-
-            Text("Real Cutout Placement")
+            Text("TopCutout Library")
                 .font(.system(size: 34, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The glow is drawn against the actual top hardware area using the package top-feature data and a full-screen, safe-area-ignoring overlay.")
+            Text("A technical layout driven by the generated device table, showing the display edge, sensor housing, and the real corner radius geometry.")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.68))
+                .foregroundStyle(Color(red: 0.72, green: 0.9, blue: 1).opacity(0.82))
                 .multilineTextAlignment(.center)
+
+            if showsDebugButton {
+                Button(action: onShowDebug) {
+                    Text("Show Debug Modal")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color(red: 1, green: 0.45, blue: 0.38))
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 6)
+            }
         }
         .padding(.horizontal, 10)
+    }
+}
+
+private struct BlueprintOverlay: View {
+    let resolved: ResolvedGeometry
+
+    private let accent = Color(red: 0.57, green: 0.9, blue: 1)
+    private let labelHeight: CGFloat = 56
+    private let labelGap: CGFloat = 40
+    private let cornerLabelWidth: CGFloat = 132
+    private let cornerLabelTrailingInset: CGFloat = 40
+    private let cornerLabelTopGap: CGFloat = 20
+    private let notchOverlayLabelGap: CGFloat = 20
+
+    var body: some View {
+        let bounds = resolved.screenInfo.bounds
+        let cornerRadius = resolved.screenInfo.fittedCornerRadius(in: bounds)
+        let cutout = resolved.topCutout.rect(in: bounds)
+        let displayEdgeTarget = CGPoint(
+            x: 0,
+            y: bounds.midY
+        )
+        let topRightCornerCenter = CGPoint(
+            x: bounds.maxX - cornerRadius,
+            y: bounds.minY + cornerRadius
+        )
+        let cornerTarget = CGPoint(
+            x: topRightCornerCenter.x + cornerRadius * 0.7071,
+            y: topRightCornerCenter.y - cornerRadius * 0.7071
+        )
+        let displayLabelPosition = CGPoint(
+            x: bounds.midX,
+            y: bounds.midY
+        )
+        let sensorLabelPosition: CGPoint? = {
+            guard cutout != nil else {
+                return nil
+            }
+
+            return CGPoint(
+                x: displayLabelPosition.x,
+                y: displayLabelPosition.y - labelHeight - labelGap
+            )
+        }()
+        let cornerLabelPosition = CGPoint(
+            x: bounds.maxX - cornerLabelTrailingInset - (cornerLabelWidth * 0.5),
+            y: (cutout?.maxY ?? 0) + cornerLabelTopGap + (labelHeight * 0.5)
+        )
+        let notchOverlay = notchOverlay(
+            in: bounds,
+            sensorLabelPosition: sensorLabelPosition
+        )
+
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(accent.opacity(0.82), lineWidth: 2)
+                .frame(width: bounds.width, height: bounds.height)
+
+            if let notchOverlay {
+                Color.clear
+                    .frame(width: bounds.width, height: bounds.height)
+                    .overlay(alignment: .topLeading) {
+                        BlueprintNotchOverlay(path: notchOverlay.path, accent: accent)
+                            .frame(
+                                width: notchOverlay.frame.width,
+                                height: notchOverlay.frame.height,
+                                alignment: .topLeading
+                            )
+                            .offset(x: notchOverlay.frame.minX, y: notchOverlay.frame.minY)
+                    }
+            }
+
+            BlueprintArrow(
+                from: CGPoint(x: displayLabelPosition.x - 72, y: displayLabelPosition.y),
+                to: displayEdgeTarget,
+                color: accent
+            )
+
+            BlueprintLabel(
+                title: "Display Edge",
+                value: "\(Int(resolved.screenInfo.points.width)) x \(Int(resolved.screenInfo.points.height)) pt",
+                detail: "\(format(resolved.screenInfo.scale))x scale • \(resolved.screenInfo.pixelsLabel)",
+                accent: accent
+            )
+            .position(x: displayLabelPosition.x, y: displayLabelPosition.y)
+
+            if let cutout, let sensorLabelPosition {
+                BlueprintArrow(
+                    from: CGPoint(
+                        x: sensorLabelPosition.x,
+                        y: sensorLabelPosition.y + (labelHeight * 0.5) - 10
+                    ),
+                    to: CGPoint(x: cutout.midX, y: cutout.midY),
+                    color: accent
+                )
+
+                BlueprintLabel(
+                    title: "Sensor Housing",
+                    value: "\(format(resolved.topCutout.size?.width ?? 0)) x \(format(resolved.topCutout.size?.height ?? 0)) pt",
+                    detail: sensorHousingDetail,
+                    accent: accent
+                )
+                .position(x: sensorLabelPosition.x, y: sensorLabelPosition.y)
+            }
+
+            if cornerRadius > 0 {
+                BlueprintArrow(
+                    from: CGPoint(
+                        x: cornerLabelPosition.x - 28,
+                        y: cornerLabelPosition.y - 12
+                    ),
+                    to: cornerTarget,
+                    color: accent
+                )
+
+                BlueprintLabel(
+                    title: "Corner Radius",
+                    value: "\(format(resolved.screenInfo.cornerRadiusPoints ?? 0)) pt",
+                    detail: nil,
+                    accent: accent
+                )
+                .position(x: cornerLabelPosition.x, y: cornerLabelPosition.y)
+            }
+        }
+        .frame(width: bounds.width, height: bounds.height, alignment: .topLeading)
+        .ignoresSafeArea()
+    }
+
+    private func format(_ value: CGFloat) -> String {
+        if abs(value.rounded() - value) < 0.000_1 {
+            return String(Int(value.rounded()))
+        }
+
+        return String(format: "%.1f", value)
+    }
+
+    private func notchOverlay(
+        in bounds: CGRect,
+        sensorLabelPosition: CGPoint?
+    ) -> (path: Path, frame: CGRect)? {
+        guard resolved.topCutout.kind == .notch,
+              let cutout = resolved.topCutout.rect(in: bounds),
+              let sensorLabelPosition,
+              let device = TopCutoutCatalog.Device(rawValue: resolved.modelIdentifier),
+              let sensorHousingPath = device.sensorHousingPath else {
+            return nil
+        }
+
+        let sourceBounds = sensorHousingPath.boundingRect
+        guard sourceBounds.width > 0, sourceBounds.height > 0 else {
+            return nil
+        }
+
+        let normalized = sensorHousingPath.applying(
+            CGAffineTransform(translationX: -sourceBounds.minX, y: -sourceBounds.minY)
+        )
+        let scaled = normalized.applying(
+            CGAffineTransform(
+                scaleX: cutout.width / sourceBounds.width,
+                y: cutout.height / sourceBounds.height
+            )
+        )
+        let flipped = scaled.applying(
+            CGAffineTransform(translationX: 0, y: cutout.height)
+                .scaledBy(x: 1, y: -1)
+        )
+
+        let overlayOrigin = CGPoint(
+            x: sensorLabelPosition.x - (cutout.width * 0.5),
+            y: sensorLabelPosition.y - (labelHeight * 0.5) - notchOverlayLabelGap - cutout.height
+        )
+
+        return (
+            path: flipped,
+            frame: CGRect(origin: overlayOrigin, size: CGSize(width: cutout.width, height: cutout.height))
+        )
+    }
+
+    private var sensorHousingDetail: String {
+        if let paddingTop = resolved.topCutout.paddingTop, paddingTop > 0.000_1 {
+            return "Top gap \(format(paddingTop)) pt"
+        }
+
+        switch resolved.topCutout.kind {
+        case .dynamicIsland:
+            return "Dynamic Island"
+        case .notch:
+            return "Top Notch"
+        case .none:
+            return "No Cutout"
+        }
+    }
+}
+
+private struct BlueprintNotchOverlay: View {
+    let path: Path
+    let accent: Color
+
+    var body: some View {
+        let shape = BlueprintPathShape(path: path)
+
+        ZStack {
+            BlueprintHatchPattern(spacing: 8)
+                .stroke(accent.opacity(0.34), lineWidth: 1)
+                .clipShape(shape)
+
+            shape
+                .stroke(accent.opacity(0.72), lineWidth: 1.2)
+        }
+    }
+}
+
+private struct BlueprintPathShape: Shape {
+    let path: Path
+
+    func path(in _: CGRect) -> Path {
+        path
+    }
+}
+
+private struct BlueprintLabel: View {
+    let title: String
+    let value: String
+    let detail: String?
+    let accent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(accent.opacity(0.74))
+
+            Text(value)
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(accent.opacity(0.72))
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(red: 0.03, green: 0.15, blue: 0.24).opacity(0.96))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(accent.opacity(0.28), lineWidth: 1)
+                }
+        )
+    }
+}
+
+private struct BlueprintArrow: View {
+    let from: CGPoint
+    let to: CGPoint
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            Path { path in
+                path.move(to: from)
+                path.addLine(to: to)
+
+                let angle = atan2(to.y - from.y, to.x - from.x)
+                let arrowLength: CGFloat = 10
+                let arrowAngle: CGFloat = .pi / 7
+
+                path.move(to: to)
+                path.addLine(
+                    to: CGPoint(
+                        x: to.x - cos(angle - arrowAngle) * arrowLength,
+                        y: to.y - sin(angle - arrowAngle) * arrowLength
+                    )
+                )
+                path.move(to: to)
+                path.addLine(
+                    to: CGPoint(
+                        x: to.x - cos(angle + arrowAngle) * arrowLength,
+                        y: to.y - sin(angle + arrowAngle) * arrowLength
+                    )
+                )
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
+
+            Circle()
+                .fill(color)
+                .frame(width: 5, height: 5)
+                .position(x: to.x, y: to.y)
+        }
     }
 }
 
@@ -467,6 +571,7 @@ private struct InfoPanel: View {
 
     var body: some View {
         let topCutout = resolved.topCutout
+        let screenInfo = resolved.screenInfo
 
         VStack(alignment: .leading, spacing: 14) {
             Text(title(for: topCutout.kind))
@@ -488,6 +593,9 @@ private struct InfoPanel: View {
                 value: topInsetLabel(for: topCutout)
             )
             MetricRow(label: "Kind", value: kindLabel(topCutout.kind))
+            MetricRow(label: "Screen", value: screenLabel(for: screenInfo))
+            MetricRow(label: "Scale", value: scaleLabel(for: screenInfo))
+            MetricRow(label: "Corner Radius", value: cornerRadiusLabel(for: screenInfo))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
@@ -537,6 +645,30 @@ private struct InfoPanel: View {
         }
 
         return "\(Int(paddingTop)) pt"
+    }
+
+    private func screenLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
+        "\(Int(screenInfo.points.width)) x \(Int(screenInfo.points.height)) pt"
+    }
+
+    private func scaleLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
+        "\(format(screenInfo.scale))x @ \(screenInfo.pixelsLabel)"
+    }
+
+    private func cornerRadiusLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
+        guard let cornerRadius = screenInfo.cornerRadiusPoints else {
+            return "Unavailable"
+        }
+
+        return "\(format(cornerRadius)) pt"
+    }
+
+    private func format(_ value: CGFloat) -> String {
+        if abs(value.rounded() - value) < 0.000_1 {
+            return String(Int(value.rounded()))
+        }
+
+        return String(format: "%.1f", value)
     }
 }
 
@@ -596,15 +728,8 @@ private struct DebugProbePanel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxHeight: .infinity, alignment: .top)
         .padding(22)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
-        )
     }
 
     private func formatted(_ value: Double) -> String {
@@ -613,56 +738,6 @@ private struct DebugProbePanel: View {
         }
 
         return String(format: "%.1f", value)
-    }
-}
-
-private extension TopCutoutCatalogProbeReport {
-    var exclusionSummary: String {
-        guard let exclusionRect else {
-            return "Unavailable"
-        }
-
-        return "x \(format(exclusionRect.x)) y \(format(exclusionRect.y)) w \(format(exclusionRect.width)) h \(format(exclusionRect.height))"
-    }
-
-    var inferredGeometrySummary: String {
-        guard let inferredGeometry else {
-            return "Unavailable"
-        }
-
-        return "\(inferredGeometry.style) \(format(inferredGeometry.width)) x \(format(inferredGeometry.height)) @ \(format(inferredGeometry.topInset))"
-    }
-
-    private func format(_ value: Double) -> String {
-        if abs(value.rounded() - value) < 0.000_1 {
-            return String(Int(value.rounded()))
-        }
-
-        return String(format: "%.1f", value)
-    }
-}
-
-private struct UnresolvedPanel: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("No cutout geometry resolved")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("The current device was not matched by the generated device table, so no supported cutout shape was resolved.")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.74))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
-        )
     }
 }
 
@@ -702,242 +777,117 @@ private struct MetricRow: View {
     }
 }
 
-private struct LiveCutoutOverlay: View {
-    let topCutout: TopCutoutCatalog.TopCutoutInfo
-    let isGlowing: Bool
+private struct BlueprintBackdrop: View {
+    private let accent = Color(red: 0.57, green: 0.9, blue: 1)
 
-    var body: some View {
-        GeometryReader { proxy in
-            let bounds = CGRect(origin: .zero, size: proxy.size)
-            let occupiedBand = topCutout.occupiedTopBand(in: bounds)
-            let buttonCenters = topCutout.recommendedButtonCenters(
-                in: bounds,
-                buttonSize: CGSize(width: 18, height: 18),
-                sidePadding: 16
-            )
-
-            if let occupiedBand {
-                ZStack(alignment: .topLeading) {
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.08),
-                            Color.white.opacity(0.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: occupiedBand.height + 44)
-                    .mask(
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        .white,
-                                        .white.opacity(0.7),
-                                        .clear
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    )
-
-                    if let buttonCenters {
-                        EarStatusDot()
-                            .position(x: buttonCenters.leading.x, y: buttonCenters.leading.y)
-
-                        EarStatusDot()
-                            .position(x: buttonCenters.trailing.x, y: buttonCenters.trailing.y)
-                    }
-
-                    CutoutGlow(
-                        topCutout: topCutout,
-                        isGlowing: isGlowing
-                    )
-                }
-                .ignoresSafeArea()
-            }
-        }
-    }
-}
-
-private struct EarStatusDot: View {
-    var body: some View {
-        Circle()
-            .fill(Color(red: 1, green: 0.34, blue: 0.27))
-            .frame(width: 10, height: 10)
-            .overlay {
-                Circle()
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
-            }
-            .shadow(color: Color(red: 1, green: 0.2, blue: 0.16).opacity(0.55), radius: 8)
-    }
-}
-
-private struct CutoutGlow: View {
-    let topCutout: TopCutoutCatalog.TopCutoutInfo
-    let isGlowing: Bool
-
-    private let glowColor = Color(red: 1, green: 0.19, blue: 0.18)
-
-    var body: some View {
-        GeometryReader { proxy in
-            let bounds = CGRect(origin: .zero, size: proxy.size)
-            if let cutout = topCutout.rect(in: bounds) {
-                ZStack {
-                    if topCutout.kind == .dynamicIsland {
-                        Capsule()
-                            .fill(glowColor.opacity(isGlowing ? 0.58 : 0.34))
-                            .frame(
-                                width: cutout.width + (isGlowing ? 36 : 22),
-                                height: cutout.height + (isGlowing ? 24 : 14)
-                            )
-                            .blur(radius: isGlowing ? 24 : 14)
-                            .position(x: cutout.midX, y: cutout.midY)
-
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.black,
-                                        Color(red: 0.08, green: 0.03, blue: 0.04)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: cutout.width, height: cutout.height)
-                            .overlay {
-                                Capsule()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.16),
-                                                glowColor.opacity(0.65)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            }
-                            .position(x: cutout.midX, y: cutout.midY)
-                    } else {
-                        TopNotchShape()
-                            .fill(glowColor.opacity(isGlowing ? 0.42 : 0.25))
-                            .frame(
-                                width: cutout.width + (isGlowing ? 40 : 26),
-                                height: cutout.height + (isGlowing ? 22 : 14)
-                            )
-                            .blur(radius: isGlowing ? 26 : 16)
-                            .position(x: cutout.midX, y: cutout.midY + 4)
-
-                        TopNotchShape()
-                            .stroke(glowColor.opacity(isGlowing ? 0.88 : 0.45), lineWidth: 1.5)
-                            .frame(width: cutout.width + 8, height: cutout.height + 4)
-                            .blur(radius: isGlowing ? 2.6 : 1.6)
-                            .position(x: cutout.midX, y: cutout.midY + 1)
-
-                        TopNotchShape()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.black,
-                                        Color(red: 0.08, green: 0.03, blue: 0.04)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: cutout.width, height: cutout.height)
-                            .overlay {
-                                TopNotchShape()
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(0.14),
-                                                glowColor.opacity(0.45)
-                                            ],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            }
-                            .position(x: cutout.midX, y: cutout.midY)
-                    }
-                }
-            }
-        }
-        .ignoresSafeArea()
-    }
-}
-
-private struct DemoBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(red: 0.05, green: 0.01, blue: 0.02),
-                    Color(red: 0.12, green: 0.01, blue: 0.05),
-                    Color.black
+                    Color(red: 0.02, green: 0.08, blue: 0.13),
+                    Color(red: 0.03, green: 0.12, blue: 0.2),
+                    Color(red: 0.01, green: 0.04, blue: 0.08),
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
             .ignoresSafeArea()
 
-            Circle()
-                .fill(Color.red.opacity(0.35))
-                .frame(width: 260, height: 260)
-                .blur(radius: 100)
-                .offset(x: 120, y: -250)
+            BlueprintGrid(spacing: 24, color: accent.opacity(0.08))
+                .ignoresSafeArea()
+
+            BlueprintGrid(spacing: 120, color: accent.opacity(0.16))
+                .ignoresSafeArea()
 
             Circle()
-                .fill(Color(red: 1, green: 0.35, blue: 0.16).opacity(0.22))
+                .fill(accent.opacity(0.18))
+                .frame(width: 360, height: 360)
+                .blur(radius: 120)
+                .offset(x: 120, y: -280)
+
+            Circle()
+                .fill(Color.white.opacity(0.08))
                 .frame(width: 280, height: 280)
                 .blur(radius: 110)
-                .offset(x: -140, y: 180)
+                .offset(x: -150, y: 220)
         }
     }
 }
 
-private struct TopNotchShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let width = rect.width
-        let height = rect.height
-        let shoulder = width * 0.185
-        let neck = width * 0.30
-        let base = width * 0.42
-        let shoulderDrop = height * 0.24
-        let neckDrop = height * 0.62
+private struct BlueprintGrid: View {
+    let spacing: CGFloat
+    let color: Color
 
+    var body: some View {
+        BlueprintGridShape(spacing: spacing)
+            .stroke(color, lineWidth: 0.8)
+    }
+}
+
+private struct BlueprintGridShape: Shape {
+    let spacing: CGFloat
+
+    func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: shoulder, y: 0))
-        path.addCurve(
-            to: CGPoint(x: neck, y: neckDrop),
-            control1: CGPoint(x: shoulder + width * 0.04, y: 0),
-            control2: CGPoint(x: neck - width * 0.05, y: shoulderDrop)
-        )
-        path.addCurve(
-            to: CGPoint(x: base, y: height),
-            control1: CGPoint(x: neck + width * 0.03, y: height * 0.90),
-            control2: CGPoint(x: base - width * 0.04, y: height)
-        )
-        path.addLine(to: CGPoint(x: width - base, y: height))
-        path.addCurve(
-            to: CGPoint(x: width - neck, y: neckDrop),
-            control1: CGPoint(x: width - base + width * 0.04, y: height),
-            control2: CGPoint(x: width - neck - width * 0.03, y: height * 0.90)
-        )
-        path.addCurve(
-            to: CGPoint(x: width - shoulder, y: 0),
-            control1: CGPoint(x: width - neck + width * 0.05, y: shoulderDrop),
-            control2: CGPoint(x: width - shoulder - width * 0.04, y: 0)
-        )
-        path.addLine(to: CGPoint(x: width, y: 0))
-        path.closeSubpath()
+
+        var x: CGFloat = 0
+        while x <= rect.width {
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x, y: rect.height))
+            x += spacing
+        }
+
+        var y: CGFloat = 0
+        while y <= rect.height {
+            path.move(to: CGPoint(x: 0, y: y))
+            path.addLine(to: CGPoint(x: rect.width, y: y))
+            y += spacing
+        }
+
         return path
+    }
+}
+
+private struct BlueprintHatchPattern: Shape {
+    let spacing: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        var startX = -rect.height
+        while startX <= rect.width + rect.height {
+            path.move(to: CGPoint(x: startX, y: rect.height))
+            path.addLine(to: CGPoint(x: startX + rect.height, y: 0))
+            startX += spacing
+        }
+
+        return path
+    }
+}
+
+extension TopCutoutCatalog.ScreenInfo {
+    fileprivate var bounds: CGRect {
+        CGRect(origin: .zero, size: points)
+    }
+
+    fileprivate func fittedScale(in bounds: CGRect) -> CGFloat {
+        let sourceMin = min(points.width, points.height)
+        let sourceMax = max(points.width, points.height)
+        let boundsMin = min(bounds.width, bounds.height)
+        let boundsMax = max(bounds.width, bounds.height)
+
+        guard sourceMin > 0, sourceMax > 0 else {
+            return 1
+        }
+
+        return min(boundsMin / sourceMin, boundsMax / sourceMax)
+    }
+
+    fileprivate func fittedCornerRadius(in bounds: CGRect) -> CGFloat {
+        max(0, (cornerRadiusPoints ?? 0) * fittedScale(in: bounds))
+    }
+
+    fileprivate var pixelsLabel: String {
+        "\(Int(pixels.width)) x \(Int(pixels.height)) px"
     }
 }
