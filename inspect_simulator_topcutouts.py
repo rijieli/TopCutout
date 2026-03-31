@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 
 """
-Inspect installed or mounted Xcode/CoreSimulator packages and extract device
-screen metrics plus any top-cutout assets exposed by *.simdevicetype bundles.
+Fetch all iPhone simulator device assets into ./fetch_result.
 
-This script is intentionally dependency-free. It uses:
-- Python stdlib for plist/PDF/PNG parsing
-- macOS `hdiutil` to mount .dmg files
-- macOS `sips` to rasterize PDF assets when present
+What it does:
+1. Reads every iPhone *.simdevicetype bundle from CoreSimulator
+2. Creates ./fetch_result
+3. Copies the relevant source files for each device:
+   - profile.plist
+   - capabilities.plist
+   - sensor bar PDF if present
+   - hardware screen curve PDF if present
+4. Writes a pretty JSON manifest to ./fetch_result/devices.json
 
-Important limitation:
-- Notch-era iPhone simulator bundles include drawable `sensor_bar_class_01/02/03`
-  PDFs, so the package exposes a concrete top bar asset.
-- Dynamic Island iPhone bundles currently declare Dynamic Island support, but the
-  shipped `sensor_bar_class_04/05` PDFs are blank pages. That means the package
-  does not expose the exact island silhouette numerically by itself.
+The JSON includes vector curve commands parsed from the PDFs.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import plistlib
 import re
@@ -28,10 +26,20 @@ import subprocess
 import sys
 import tempfile
 import zlib
-from dataclasses import dataclass
+import hashlib
 from pathlib import Path
-from typing import Iterable
 
+
+DEVICE_TYPES_ROOT = Path("/Library/Developer/CoreSimulator/Profiles/DeviceTypes")
+REPO_ROOT = Path(__file__).resolve().parent
+OUTPUT_ROOT = REPO_ROOT / "fetch_result"
+DEVICES_OUTPUT_ROOT = OUTPUT_ROOT / "devices"
+MANIFEST_PATH = OUTPUT_ROOT / "devices.json"
+IPHONE_DEVICE_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice.generated.swift"
+IPHONE_DEVICE_PATH_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+Path.generated.swift"
+IPHONE_DEVICE_SCREEN_INFO_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+ScreenInfo.generated.swift"
+IPHONE_DEVICE_DISPLAY_NAME_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+DisplayName.generated.swift"
+IPHONE_DEVICE_TOP_FEATURE_SWIFT_PATH = REPO_ROOT / "Sources/TopCutout/iPhoneDevice+TopFeature.generated.swift"
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MEDIABOX_RE = re.compile(
@@ -88,46 +96,13 @@ COMMON_OPERATOR_ARITY = {
 }
 
 
-@dataclass
-class MountedDMG:
-    mount_point: Path
-    image_path: Path
-
-
 def fail(message: str) -> "Never":
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
 
-def run_command(args: list[str], *, check: bool = True, capture_output: bool = True) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(
-        args,
-        check=check,
-        capture_output=capture_output,
-    )
-
-
-def mount_dmg(dmg_path: Path) -> MountedDMG:
-    result = run_command(
-        ["hdiutil", "attach", "-readonly", "-nobrowse", "-plist", str(dmg_path)]
-    )
-    payload = plistlib.loads(result.stdout)
-
-    mount_point = None
-    for entity in payload.get("system-entities", []):
-        value = entity.get("mount-point")
-        if value:
-            mount_point = Path(value)
-            break
-
-    if mount_point is None:
-        fail(f"Mounted {dmg_path}, but no mount point was returned by hdiutil.")
-
-    return MountedDMG(mount_point=mount_point, image_path=dmg_path)
-
-
-def unmount_dmg(mounted: MountedDMG) -> None:
-    run_command(["hdiutil", "detach", str(mounted.mount_point)], check=False)
+def run_command(args: list[str]) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(args, check=True, capture_output=True)
 
 
 def parse_plist(path: Path) -> dict:
@@ -142,6 +117,23 @@ def round_number(value: float) -> float | int:
     return round(value, 4)
 
 
+def slugify(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    return value.strip("-")
+
+
+def relative_to_output(path: Path) -> str:
+    return str(path.relative_to(OUTPUT_ROOT))
+
+
+def copy_file(src: Path, dst_dir: Path) -> Path:
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    dst = dst_dir / src.name
+    shutil.copy2(src, dst)
+    return dst
+
+
 def parse_pdf_media_box(pdf_path: Path) -> tuple[float, float] | None:
     data = pdf_path.read_bytes()
     match = MEDIABOX_RE.search(data)
@@ -153,17 +145,18 @@ def parse_pdf_media_box(pdf_path: Path) -> tuple[float, float] | None:
 def extract_pdf_flate_streams(pdf_path: Path) -> list[bytes]:
     data = pdf_path.read_bytes()
     streams: list[bytes] = []
+
     for match in OBJ_STREAM_RE.finditer(data):
         header = match.group(3)
         if b"/FlateDecode" not in header:
             continue
+
         stream_start = match.end()
         stream_end = data.find(b"endstream", stream_start)
         if stream_end == -1:
             continue
 
-        compressed = data[stream_start:stream_end]
-        compressed = compressed.rstrip(b"\r\n")
+        compressed = data[stream_start:stream_end].rstrip(b"\r\n")
         try:
             streams.append(zlib.decompress(compressed))
         except zlib.error:
@@ -203,12 +196,14 @@ def parse_pdf_path_commands(stream: bytes) -> list[dict]:
         operator = token.decode("latin1", "ignore")
         if operator in PATH_OPERATOR_ARITY:
             arity = PATH_OPERATOR_ARITY[operator]
+            if len(number_stack) < arity:
+                number_stack.clear()
+                continue
+
             args = number_stack[-arity:] if arity else []
             if arity:
-                if len(number_stack) < arity:
-                    number_stack.clear()
-                    continue
                 del number_stack[-arity:]
+
             commands.append(
                 {
                     "op": operator,
@@ -231,60 +226,401 @@ def parse_pdf_path_commands(stream: bytes) -> list[dict]:
 
 
 def summarize_path_commands(commands: list[dict]) -> dict:
-    summary = {
-        "command_count": len(commands),
-        "subpath_count": 0,
-        "has_beziers": False,
-        "operators": [],
-    }
-
     if not commands:
-        return summary
+        return {
+            "command_count": 0,
+            "subpath_count": 0,
+            "has_beziers": False,
+            "operators": [],
+            "commands": [],
+        }
 
     operators = [command["op"] for command in commands]
-    summary["operators"] = sorted(set(operators))
-    summary["has_beziers"] = any(op in {"c", "v", "y"} for op in operators)
-    summary["subpath_count"] = sum(1 for op in operators if op in {"m", "re"})
-    return summary
-
-
-def inspect_pdf_vector_paths(pdf_path: Path, *, include_curves: bool) -> dict:
-    streams = extract_pdf_flate_streams(pdf_path)
-    path_streams = [stream for stream in streams if looks_like_pdf_path_stream(stream)]
-
-    vector_info = {
-        "has_vector_paths": False,
-        "stream_count": 0,
-        "path_summaries": [],
+    return {
+        "command_count": len(commands),
+        "subpath_count": sum(1 for op in operators if op in {"m", "re"}),
+        "has_beziers": any(op in {"c", "v", "y"} for op in operators),
+        "operators": sorted(set(operators)),
+        "commands": commands,
     }
 
-    if not path_streams:
-        return vector_info
 
-    vector_info["has_vector_paths"] = True
-    vector_info["stream_count"] = len(path_streams)
+def inspect_pdf_vector_paths(pdf_path: Path) -> list[list[dict]]:
+    path_streams = [
+        stream
+        for stream in extract_pdf_flate_streams(pdf_path)
+        if looks_like_pdf_path_stream(stream)
+    ]
 
+    parsed_streams = []
     for stream in path_streams:
         commands = parse_pdf_path_commands(stream)
-        if not commands:
+        if commands:
+            parsed_streams.append(commands)
+
+    return parsed_streams
+
+
+def extract_primary_path_commands(commands: list[dict]) -> list[dict]:
+    stop_ops = {"W", "W*", "n", "f", "f*", "F", "B", "B*", "b", "b*", "S", "s"}
+    primary: list[dict] = []
+    for command in commands:
+        if command["op"] in stop_ops:
+            break
+        primary.append(command)
+    return primary
+
+
+def path_signature(commands: list[dict]) -> str:
+    payload = json.dumps(commands, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
+
+def commands_to_swift_path_body_lines(
+    commands: list[dict],
+    *,
+    indent: str,
+) -> list[str]:
+    lines = [f"{indent}var path = Path()"]
+
+    current_point: tuple[float | int, float | int] | None = None
+    subpath_start: tuple[float | int, float | int] | None = None
+
+    def point_literal(x: float | int, y: float | int) -> str:
+        return f"CGPoint(x: {x}, y: {y})"
+
+    for command in commands:
+        op = command["op"]
+        args = command["args"]
+
+        if op == "m":
+            point = (args[0], args[1])
+            lines.append(f"{indent}path.move(to: {point_literal(*point)})")
+            current_point = point
+            subpath_start = point
+        elif op == "l":
+            point = (args[0], args[1])
+            lines.append(f"{indent}path.addLine(to: {point_literal(*point)})")
+            current_point = point
+        elif op == "c":
+            end_point = (args[4], args[5])
+            lines.append(
+                f"{indent}path.addCurve("
+                f"to: {point_literal(*end_point)}, "
+                f"control1: {point_literal(args[0], args[1])}, "
+                f"control2: {point_literal(args[2], args[3])}"
+                ")"
+            )
+            current_point = end_point
+        elif op == "v" and current_point is not None:
+            end_point = (args[2], args[3])
+            lines.append(
+                f"{indent}path.addCurve("
+                f"to: {point_literal(*end_point)}, "
+                f"control1: {point_literal(*current_point)}, "
+                f"control2: {point_literal(args[0], args[1])}"
+                ")"
+            )
+            current_point = end_point
+        elif op == "y":
+            end_point = (args[2], args[3])
+            lines.append(
+                f"{indent}path.addCurve("
+                f"to: {point_literal(*end_point)}, "
+                f"control1: {point_literal(args[0], args[1])}, "
+                f"control2: {point_literal(*end_point)}"
+                ")"
+            )
+            current_point = end_point
+        elif op == "h":
+            lines.append(f"{indent}path.closeSubpath()")
+            current_point = subpath_start
+        elif op == "re":
+            lines.append(
+                f"{indent}path.addRect("
+                f"CGRect(x: {args[0]}, y: {args[1]}, width: {args[2]}, height: {args[3]})"
+                ")"
+            )
+            current_point = None
+            subpath_start = None
+
+    lines.append(f"{indent}return path")
+    return lines
+
+
+def swift_number_literal(value: float | int | None) -> str:
+    if value is None:
+        return "nil"
+    if isinstance(value, int):
+        return str(value)
+
+    rounded = round(value)
+    if abs(value - rounded) < 1e-9:
+        return str(int(rounded))
+    return repr(value)
+
+
+def display_name_for_device(device: dict) -> str:
+    device_name = device["device_name"]
+    marketing_name = device.get("marketing_name")
+    if not marketing_name:
+        return device_name
+
+    # Keep generation detail for SE models while using cleaner marketing casing elsewhere.
+    if marketing_name == "iPhone SE" and "(" in device_name:
+        return device_name
+
+    return marketing_name
+
+
+def swift_top_feature_kind_literal(kind: str) -> str:
+    if kind == "none":
+        return ".none"
+    if kind == "notch":
+        return ".notch"
+    if kind == "dynamic_island":
+        return ".dynamicIsland"
+    fail(f"Unsupported top feature kind: {kind}")
+
+
+def swift_bool_literal(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def write_swift_paths_file(
+    devices: dict[str, dict],
+    model_to_function: dict[str, str],
+    function_to_commands: dict[str, list[dict]],
+) -> None:
+    lines = [
+        "import SwiftUI",
+        "",
+        "// Generated by inspect_simulator_topcutouts.py",
+        "extension IPhoneDevice {",
+        "    public var topFeaturePath: Path? {",
+        "        switch self {",
+    ]
+
+    for model_identifier, device in sorted(devices.items(), key=lambda item: model_identifier_sort_key(item[0])):
+        case_name = swift_enum_case_name(device["device_name"])
+        function_name = model_to_function.get(model_identifier)
+        if function_name is None:
             continue
 
-        path_summary = summarize_path_commands(commands)
-        if include_curves:
-            path_summary["commands"] = commands
-        vector_info["path_summaries"].append(path_summary)
+        commands = function_to_commands[function_name]
+        lines.append(f"        case .{case_name}:")
+        lines.extend(commands_to_swift_path_body_lines(commands, indent="            "))
 
-    if not vector_info["path_summaries"]:
-        vector_info["has_vector_paths"] = False
-        vector_info["stream_count"] = 0
+    lines.extend(
+        [
+            "        default:",
+            "            return nil",
+            "        }",
+            "    }",
+        ]
+    )
 
-    return vector_info
+    lines.append("}")
+    IPHONE_DEVICE_PATH_SWIFT_PATH.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def swift_enum_case_name(device_name: str) -> str:
+    normalized = device_name.replace("ʀ", "R")
+    tokens = re.findall(r"[A-Za-z0-9]+", normalized)
+    if not tokens:
+        fail(f"Could not derive a Swift enum case name from device name: {device_name}")
+
+    parts: list[str] = []
+    for index, token in enumerate(tokens):
+        if index == 0 and token.lower() == "iphone":
+            parts.append("iPhone")
+        elif token.isupper() or token[0].isdigit():
+            parts.append(token)
+        else:
+            parts.append(token[0].upper() + token[1:])
+
+    return "".join(parts)
+
+
+def model_identifier_sort_key(model_identifier: str) -> tuple[tuple[int, int | str], ...]:
+    normalized = model_identifier.removeprefix("iPhone")
+    parts = normalized.split(",")
+    key: list[tuple[int, int | str]] = []
+    for part in parts:
+        try:
+            key.append((0, int(part)))
+        except ValueError:
+            key.append((1, part))
+    return tuple(key)
+
+
+def write_swift_device_enum_file(devices: dict[str, dict]) -> None:
+    lines = [
+        "// Generated by inspect_simulator_topcutouts.py",
+        "public enum IPhoneDevice: String, CaseIterable, Sendable {",
+    ]
+
+    seen_case_names: dict[str, str] = {}
+    sorted_devices = sorted(devices.items(), key=lambda item: model_identifier_sort_key(item[0]))
+    for model_identifier, device in sorted_devices:
+        case_name = swift_enum_case_name(device["device_name"])
+        duplicate = seen_case_names.get(case_name)
+        if duplicate is not None:
+            fail(
+                "Duplicate Swift enum case name "
+                f"{case_name!r} for model identifiers {duplicate} and {model_identifier}"
+            )
+
+        seen_case_names[case_name] = model_identifier
+        lines.append(f'    case {case_name} = "{model_identifier}"')
+
+    lines.append("}")
+    IPHONE_DEVICE_SWIFT_PATH.write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_swift_screen_info_file(devices: dict[str, dict]) -> None:
+    lines = [
+        "import UIKit",
+        "",
+        "// Generated by inspect_simulator_topcutouts.py",
+        "extension IPhoneDevice {",
+        "    public var screenInfo: IPhoneScreenInfo {",
+        "        switch self {",
+    ]
+
+    for model_identifier, device in sorted(devices.items(), key=lambda item: model_identifier_sort_key(item[0])):
+        case_name = swift_enum_case_name(device["device_name"])
+        screen = device["screen"]
+        pixels = screen["pixels"]
+        points = screen["points"]
+        corner_radius_points = swift_number_literal(screen["corner_radius_points"])
+        dpi = screen["dpi"]
+        scale = swift_number_literal(screen["scale"])
+        point_width = swift_number_literal(points["width"])
+        point_height = swift_number_literal(points["height"])
+
+        lines.extend(
+            [
+                f"        case .{case_name}:",
+                "            return IPhoneScreenInfo(",
+                f"                cornerRadiusPoints: {corner_radius_points},",
+                f"                dpi: {dpi if dpi is not None else 'nil'},",
+                "                pixels: CGSize(",
+                f"                    width: {pixels['width']},",
+                f"                    height: {pixels['height']}",
+                "                ),",
+                "                points: CGSize(",
+                f"                    width: {point_width},",
+                f"                    height: {point_height}",
+                "                ),",
+                f"                scale: {scale}",
+                "            )",
+            ]
+        )
+
+    lines.extend(
+        [
+            "        }",
+            "    }",
+            "}",
+        ]
+    )
+
+    IPHONE_DEVICE_SCREEN_INFO_SWIFT_PATH.write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_swift_display_name_file(devices: dict[str, dict]) -> None:
+    lines = [
+        "// Generated by inspect_simulator_topcutouts.py",
+        "extension IPhoneDevice {",
+        "    public var displayName: String {",
+        "        switch self {",
+    ]
+
+    for model_identifier, device in sorted(devices.items(), key=lambda item: model_identifier_sort_key(item[0])):
+        case_name = swift_enum_case_name(device["device_name"])
+        lines.append(f"        case .{case_name}:")
+        lines.append(f'            return "{display_name_for_device(device)}"')
+
+    lines.extend(
+        [
+            "        }",
+            "    }",
+            "}",
+        ]
+    )
+
+    IPHONE_DEVICE_DISPLAY_NAME_SWIFT_PATH.write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
+
+
+def write_swift_top_feature_file(devices: dict[str, dict]) -> None:
+    lines = [
+        "import UIKit",
+        "",
+        "// Generated by inspect_simulator_topcutouts.py",
+        "extension IPhoneDevice {",
+        "    public var topFeature: IPhoneTopFeatureInfo {",
+        "        switch self {",
+    ]
+
+    for model_identifier, device in sorted(devices.items(), key=lambda item: model_identifier_sort_key(item[0])):
+        case_name = swift_enum_case_name(device["device_name"])
+        top_feature = device["top_feature"]
+        size_points = top_feature["size_points"]
+        padding_top_points = top_feature["padding_top_points"]
+
+        lines.extend(
+            [
+                f"        case .{case_name}:",
+                "            return IPhoneTopFeatureInfo(",
+                f"                kind: {swift_top_feature_kind_literal(top_feature['kind'])},",
+                f"                geometryAvailable: {swift_bool_literal(top_feature['geometry_available'])},",
+                f"                curveAvailable: {swift_bool_literal(top_feature['curve_available'])},",
+            ]
+        )
+
+        if size_points is None:
+            lines.append("                size: nil,")
+        else:
+            lines.extend(
+                [
+                    "                size: CGSize(",
+                    f"                    width: {swift_number_literal(size_points['width'])},",
+                    f"                    height: {swift_number_literal(size_points['height'])}",
+                    "                ),",
+                ]
+            )
+
+        lines.append(
+            f"                paddingTop: {swift_number_literal(padding_top_points)}"
+        )
+        lines.append("            )")
+
+    lines.extend(
+        [
+            "        }",
+            "    }",
+            "}",
+        ]
+    )
+
+    IPHONE_DEVICE_TOP_FEATURE_SWIFT_PATH.write_text(
+        "\n".join(lines).rstrip() + "\n",
+        encoding="utf-8",
+    )
 
 
 def rasterize_pdf_to_png(pdf_path: Path, png_path: Path) -> None:
-    run_command(
-        ["sips", "-s", "format", "png", str(pdf_path), "--out", str(png_path)],
-    )
+    run_command(["sips", "-s", "format", "png", str(pdf_path), "--out", str(png_path)])
 
 
 def paeth_predictor(a: int, b: int, c: int) -> int:
@@ -316,8 +652,7 @@ def decode_png_alpha_bbox(png_path: Path) -> dict | None:
         chunk_type = data[position : position + 4]
         position += 4
         chunk_data = data[position : position + length]
-        position += length
-        position += 4  # CRC
+        position += length + 4
 
         if chunk_type == b"IHDR":
             width = int.from_bytes(chunk_data[0:4], "big")
@@ -338,24 +673,10 @@ def decode_png_alpha_bbox(png_path: Path) -> dict | None:
 
     if width is None or height is None or bit_depth is None or color_type is None:
         raise ValueError(f"{png_path} is missing IHDR metadata")
-
     if bit_depth != 8:
-        raise ValueError(
-            f"{png_path} uses unsupported PNG bit depth {bit_depth}; expected 8"
-        )
+        raise ValueError(f"{png_path} uses unsupported PNG bit depth {bit_depth}")
 
-    channels_by_color_type = {
-        0: 1,  # grayscale
-        2: 3,  # rgb
-        3: 1,  # indexed
-        4: 2,  # grayscale + alpha
-        6: 4,  # rgba
-    }
-    if color_type not in channels_by_color_type:
-        raise ValueError(
-            f"{png_path} uses unsupported PNG color type {color_type}"
-        )
-
+    channels_by_color_type = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
     channels = channels_by_color_type[color_type]
     bytes_per_pixel = channels
     stride = width * bytes_per_pixel
@@ -371,7 +692,6 @@ def decode_png_alpha_bbox(png_path: Path) -> dict | None:
     for y in range(height):
         filter_type = raw[offset]
         offset += 1
-
         row = bytearray(raw[offset : offset + stride])
         offset += stride
 
@@ -406,29 +726,21 @@ def decode_png_alpha_bbox(png_path: Path) -> dict | None:
             elif color_type == 2:
                 red, green, blue = row[start : start + 3]
                 alpha = 255
-                if len(trns) >= 6:
-                    transparent_rgb = (trns[1], trns[3], trns[5])
-                    if (red, green, blue) == transparent_rgb:
-                        alpha = 0
+                if len(trns) >= 6 and (red, green, blue) == (trns[1], trns[3], trns[5]):
+                    alpha = 0
             elif color_type == 3:
-                palette_index = row[start]
-                if palette is None:
-                    raise ValueError(f"{png_path} indexed PNG is missing a palette")
-                alpha = trns[palette_index] if palette_index < len(trns) else 255
+                index = row[start]
+                alpha = trns[index] if index < len(trns) else 255
             elif color_type == 4:
                 alpha = row[start + 1]
-            else:  # color_type == 6
+            else:
                 alpha = row[start + 3]
 
             if alpha > 0:
-                if x < min_x:
-                    min_x = x
-                if y < min_y:
-                    min_y = y
-                if x > max_x:
-                    max_x = x
-                if y > max_y:
-                    max_y = y
+                min_x = min(min_x, x)
+                min_y = min(min_y, y)
+                max_x = max(max_x, x)
+                max_y = max(max_y, y)
 
         previous_row = row
 
@@ -443,39 +755,13 @@ def decode_png_alpha_bbox(png_path: Path) -> dict | None:
     }
 
 
-def find_simdevicetype_roots(source_path: Path) -> list[Path]:
-    if source_path.is_dir() and source_path.name.endswith(".simdevicetype"):
-        return [source_path]
-
-    candidates = []
-    direct_device_types = source_path / "Library/Developer/CoreSimulator/Profiles/DeviceTypes"
-    if direct_device_types.is_dir():
-        candidates.append(direct_device_types)
-
-    if source_path.name == "DeviceTypes" and source_path.is_dir():
-        candidates.append(source_path)
-
-    if candidates:
-        roots = []
-        for candidate in candidates:
-            roots.extend(sorted(candidate.glob("*.simdevicetype")))
-        return roots
-
-    if source_path.is_dir():
-        return sorted(source_path.rglob("*.simdevicetype"))
-
-    return []
-
-
 def inspect_pdf_asset(
     pdf_path: Path,
     *,
     asset_name: str,
-    include_curves: bool,
     inspect_raster_bounds: bool,
 ) -> dict:
     page_size = parse_pdf_media_box(pdf_path)
-    vector_paths = inspect_pdf_vector_paths(pdf_path, include_curves=include_curves)
 
     opaque_bounds = None
     status = "pdf_present"
@@ -486,132 +772,25 @@ def inspect_pdf_asset(
             opaque_bounds = decode_png_alpha_bbox(png_path)
         status = "rendered" if opaque_bounds else "blank_pdf"
 
-    asset = {
+    result = {
         "name": asset_name,
         "status": status,
-        "pdf_path": str(pdf_path),
         "page_size_points": None,
-        "vector_paths": vector_paths,
     }
 
     if inspect_raster_bounds:
-        asset["opaque_bounds_points"] = opaque_bounds
+        result["opaque_bounds_points"] = opaque_bounds
 
     if page_size:
-        asset["page_size_points"] = {
+        result["page_size_points"] = {
             "width": round_number(page_size[0]),
             "height": round_number(page_size[1]),
         }
 
-    return asset
+    return result
 
 
-def inspect_sensor_bar_asset(
-    resources_dir: Path,
-    sensor_bar_name: str | None,
-    *,
-    include_curves: bool,
-) -> dict | None:
-    if not sensor_bar_name:
-        return None
-
-    pdf_path = resources_dir / f"{sensor_bar_name}.pdf"
-    if not pdf_path.exists():
-        return {
-            "name": sensor_bar_name,
-            "status": "missing_pdf",
-            "pdf_path": str(pdf_path),
-        }
-
-    return inspect_pdf_asset(
-        pdf_path,
-        asset_name=sensor_bar_name,
-        include_curves=include_curves,
-        inspect_raster_bounds=True,
-    )
-
-
-def inspect_framebuffer_mask_asset(
-    resources_dir: Path,
-    framebuffer_mask_name: str | None,
-    *,
-    include_curves: bool,
-) -> dict | None:
-    if not framebuffer_mask_name:
-        return None
-
-    pdf_path = resources_dir / f"{framebuffer_mask_name}.pdf"
-    if not pdf_path.exists():
-        return {
-            "name": framebuffer_mask_name,
-            "status": "missing_pdf",
-            "pdf_path": str(pdf_path),
-        }
-
-    return inspect_pdf_asset(
-        pdf_path,
-        asset_name=framebuffer_mask_name,
-        include_curves=include_curves,
-        inspect_raster_bounds=False,
-    )
-
-
-def build_cutout_summary(
-    supports_dynamic_island: bool,
-    sensor_asset: dict | None,
-) -> dict:
-    summary = {
-        "source": None,
-        "available": False,
-        "width_points": None,
-        "height_points": None,
-        "top_inset_points": None,
-        "note": None,
-    }
-
-    if not sensor_asset:
-        summary["source"] = "none"
-        summary["note"] = "No sensor bar asset was declared in the device bundle."
-        return summary
-
-    opaque_bounds = sensor_asset.get("opaque_bounds_points")
-    page_size = sensor_asset.get("page_size_points")
-
-    if opaque_bounds:
-        summary["source"] = "sensor_bar_pdf"
-        summary["available"] = True
-        summary["width_points"] = opaque_bounds["width"]
-        summary["height_points"] = opaque_bounds["height"]
-        summary["top_inset_points"] = 0
-        summary["note"] = (
-            "Derived from the drawable simulator sensor-bar PDF shipped with the "
-            "device type."
-        )
-        return summary
-
-    if supports_dynamic_island:
-        summary["source"] = "dynamic_island_declared_but_blank_asset"
-        if page_size:
-            summary["width_points"] = page_size["width"]
-            summary["height_points"] = page_size["height"]
-        summary["note"] = (
-            "The simulator bundle declares Dynamic Island support, but the shipped "
-            "sensor-bar PDF is blank, so the exact island silhouette is not exposed "
-            "directly by this package."
-        )
-        return summary
-
-    summary["source"] = "blank_sensor_bar_pdf"
-    if page_size:
-        summary["width_points"] = page_size["width"]
-        summary["height_points"] = page_size["height"]
-    summary["note"] = (
-        "A sensor-bar PDF exists, but it rendered with no opaque pixels."
-    )
-    return summary
-
-
-def inspect_device_bundle(bundle_path: Path, *, include_curves: bool) -> dict | None:
+def inspect_device_bundle(bundle_path: Path) -> dict | None:
     resources_dir = bundle_path / "Contents/Resources"
     profile_path = resources_dir / "profile.plist"
     capabilities_path = resources_dir / "capabilities.plist"
@@ -626,29 +805,84 @@ def inspect_device_bundle(bundle_path: Path, *, include_curves: bool) -> dict | 
     supported_families = profile.get("supportedProductFamilyIDs", [])
     if 1 not in supported_families:
         return None
+    if capabilities.get("idiom") != "phone":
+        return None
+
+    device_name = bundle_path.name.removesuffix(".simdevicetype")
+    if not device_name.startswith("iPhone"):
+        return None
+    device_dir = DEVICES_OUTPUT_ROOT / slugify(device_name)
+    device_dir.mkdir(parents=True, exist_ok=True)
+
+    copy_file(profile_path, device_dir)
+    copy_file(capabilities_path, device_dir)
+
+    sensor_bar_name = profile.get("sensorBarImage")
+    sensor_bar_asset = None
+    if sensor_bar_name:
+        sensor_bar_pdf = resources_dir / f"{sensor_bar_name}.pdf"
+        if sensor_bar_pdf.exists():
+            copy_file(sensor_bar_pdf, device_dir)
+            sensor_bar_asset = inspect_pdf_asset(
+                sensor_bar_pdf,
+                asset_name=sensor_bar_name,
+                inspect_raster_bounds=True,
+            )
+        else:
+            sensor_bar_asset = {
+                "name": sensor_bar_name,
+                "status": "missing_pdf",
+            }
+
+    framebuffer_mask_name = profile.get("framebufferMask")
+    if framebuffer_mask_name:
+        screen_curve_pdf = resources_dir / f"{framebuffer_mask_name}.pdf"
+        if screen_curve_pdf.exists():
+            copy_file(screen_curve_pdf, device_dir)
+            inspect_pdf_asset(
+                screen_curve_pdf,
+                asset_name=framebuffer_mask_name,
+                inspect_raster_bounds=False,
+            )
+
+    supports_dynamic_island = bool(capabilities.get("DeviceSupportsDynamicIsland"))
+    if supports_dynamic_island:
+        top_kind = "dynamic_island"
+    elif sensor_bar_name:
+        top_kind = "notch"
+    else:
+        top_kind = "none"
+
+    top_size = None
+    top_padding = None
+    top_curve_available = False
+    primary_top_feature_commands: list[dict] = []
+
+    if sensor_bar_asset and sensor_bar_asset.get("status") == "rendered":
+        opaque_bounds = sensor_bar_asset.get("opaque_bounds_points")
+        if opaque_bounds:
+            top_size = {
+                "width": opaque_bounds["width"],
+                "height": opaque_bounds["height"],
+            }
+            top_padding = 0
+        if sensor_bar_name:
+            sensor_bar_pdf = resources_dir / f"{sensor_bar_name}.pdf"
+            path_streams = inspect_pdf_vector_paths(sensor_bar_pdf)
+            if path_streams:
+                primary_top_feature_commands = extract_primary_path_commands(path_streams[0])
+                top_curve_available = bool(primary_top_feature_commands)
 
     screen_width_px = int(profile["mainScreenWidth"])
     screen_height_px = int(profile["mainScreenHeight"])
     scale = float(profile["mainScreenScale"])
+    model_identifier = profile.get("modelIdentifier") or capabilities.get("modelIdentifier")
 
-    sensor_asset = inspect_sensor_bar_asset(
-        resources_dir,
-        profile.get("sensorBarImage"),
-        include_curves=include_curves,
-    )
-    framebuffer_mask_asset = inspect_framebuffer_mask_asset(
-        resources_dir,
-        profile.get("framebufferMask"),
-        include_curves=include_curves,
-    )
-    supports_dynamic_island = bool(capabilities.get("DeviceSupportsDynamicIsland"))
-
-    result = {
-        "name": bundle_path.name.removesuffix(".simdevicetype"),
-        "bundle_path": str(bundle_path),
-        "model_identifier": profile.get("modelIdentifier") or capabilities.get("modelIdentifier"),
-        "product_class": profile.get("productClass"),
+    return {
+        "device_name": device_name,
         "marketing_name": capabilities.get("marketing-name"),
+        "model_identifier": model_identifier,
+        "product_class": profile.get("productClass"),
         "screen": {
             "pixels": {
                 "width": screen_width_px,
@@ -660,153 +894,73 @@ def inspect_device_bundle(bundle_path: Path, *, include_curves: bool) -> dict | 
             },
             "scale": round_number(scale),
             "dpi": round_number(float(profile.get("mainScreenWidthDPI", 0))) if profile.get("mainScreenWidthDPI") else None,
-            "main_screen_class": capabilities.get("ScreenDimensionsCapability", {}).get("main-screen-class"),
+            "corner_radius_points": capabilities.get("DeviceCornerRadius"),
         },
-        "chrome_identifier": profile.get("chromeIdentifier"),
-        "supports_dynamic_island": supports_dynamic_island,
-        "corner_radius_points": capabilities.get("DeviceCornerRadius"),
-        "sensor_bar_asset": sensor_asset,
-        "framebuffer_mask_asset": framebuffer_mask_asset,
-        "top_cutout": build_cutout_summary(supports_dynamic_island, sensor_asset),
+        "top_feature": {
+            "kind": top_kind,
+            "geometry_available": top_size is not None,
+            "curve_available": top_curve_available,
+            "size_points": top_size,
+            "padding_top_points": top_padding,
+        },
+        "top_feature_asset": sensor_bar_asset,
+        "_top_feature_asset_name": sensor_bar_name,
+        "_top_feature_primary_commands": primary_top_feature_commands,
     }
-
-    return result
-
-
-def iter_device_bundles(paths: Iterable[Path]) -> list[Path]:
-    bundles: dict[str, Path] = {}
-    for path in paths:
-        for bundle in find_simdevicetype_roots(path):
-            bundles[str(bundle)] = bundle
-    return sorted(bundles.values(), key=lambda item: item.name.lower())
-
-
-def bundle_matches_name_filter(bundle: Path, needle: str | None) -> bool:
-    if not needle:
-        return True
-
-    lowered = needle.lower()
-    if lowered in bundle.name.lower():
-        return True
-
-    resources_dir = bundle / "Contents/Resources"
-    for plist_name in ("profile.plist", "capabilities.plist"):
-        plist_path = resources_dir / plist_name
-        if not plist_path.exists():
-            continue
-        try:
-            payload = parse_plist(plist_path)
-        except Exception:
-            continue
-
-        values = []
-        if plist_name == "profile.plist":
-            values.extend(
-                [
-                    payload.get("modelIdentifier"),
-                    payload.get("productClass"),
-                ]
-            )
-        else:
-            capabilities = payload.get("capabilities", {})
-            values.extend(
-                [
-                    capabilities.get("modelIdentifier"),
-                    capabilities.get("marketing-name"),
-                ]
-            )
-
-        haystack = " ".join(str(value) for value in values if value).lower()
-        if lowered in haystack:
-            return True
-
-    return False
-
-
-def default_search_paths() -> list[Path]:
-    return [Path("/Library/Developer/CoreSimulator/Profiles/DeviceTypes")]
-
-
-def build_argument_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Extract screen and top-cutout metadata from simulator device packages."
-    )
-    parser.add_argument(
-        "paths",
-        nargs="*",
-        type=Path,
-        help=(
-            "A .dmg, DeviceTypes directory, *.simdevicetype bundle, or any root "
-            "directory to search recursively."
-        ),
-    )
-    parser.add_argument(
-        "--pretty",
-        action="store_true",
-        help="Pretty-print JSON output.",
-    )
-    parser.add_argument(
-        "--name-filter",
-        default=None,
-        help="Only include devices whose name or model identifier contains this string.",
-    )
-    parser.add_argument(
-        "--include-curves",
-        action="store_true",
-        help="Include full PDF path commands for vector assets in the JSON output.",
-    )
-    return parser
 
 
 def main() -> None:
     if shutil.which("sips") is None:
         fail("This script requires macOS `sips`, but it was not found in PATH.")
 
-    parser = build_argument_parser()
-    args = parser.parse_args()
+    if not DEVICE_TYPES_ROOT.is_dir():
+        fail(f"Simulator device types were not found at {DEVICE_TYPES_ROOT}")
 
-    raw_paths = args.paths or default_search_paths()
-    mounted_dmgs: list[MountedDMG] = []
-    search_paths: list[Path] = []
+    if OUTPUT_ROOT.exists():
+        shutil.rmtree(OUTPUT_ROOT)
+    DEVICES_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
-    try:
-        for path in raw_paths:
-            if path.is_file() and path.suffix == ".dmg":
-                mounted = mount_dmg(path)
-                mounted_dmgs.append(mounted)
-                search_paths.append(mounted.mount_point)
-            else:
-                search_paths.append(path)
+    devices: dict[str, dict] = {}
+    model_to_function: dict[str, str] = {}
+    signature_to_function: dict[str, str] = {}
+    function_to_commands: dict[str, list[dict]] = {}
+    for bundle_path in sorted(DEVICE_TYPES_ROOT.glob("*.simdevicetype"), key=lambda item: item.name.lower()):
+        inspected = inspect_device_bundle(bundle_path)
+        if inspected:
+            model_identifier = inspected["model_identifier"]
+            inspected.pop("_top_feature_asset_name", None)
+            primary_commands = inspected.pop("_top_feature_primary_commands", [])
 
-        bundles = iter_device_bundles(search_paths)
-        if not bundles:
-            fail(
-                "No *.simdevicetype bundles were found. Note that an iOS runtime .dmg "
-                "usually contains the runtime root, not the shared DeviceTypes catalog."
-            )
+            if primary_commands:
+                signature = path_signature(primary_commands)
+                function_name = signature_to_function.get(signature)
+                if function_name is None:
+                    function_name = f"topFeatureVariant{len(signature_to_function) + 1:02d}"
+                    signature_to_function[signature] = function_name
+                    function_to_commands[function_name] = primary_commands
+                model_to_function[model_identifier] = function_name
 
-        devices = []
-        needle = args.name_filter
-        for bundle in bundles:
-            if not bundle_matches_name_filter(bundle, needle):
-                continue
+            devices[model_identifier] = inspected
 
-            inspected = inspect_device_bundle(bundle, include_curves=args.include_curves)
-            if not inspected:
-                continue
-
-            devices.append(inspected)
-
-        output = {
-            "device_count": len(devices),
-            "devices": devices,
+    manifest_devices = {
+        model_identifier: {
+            key: value
+            for key, value in device.items()
+            if key not in {"device_name", "marketing_name", "product_class", "screen", "top_feature_asset"}
         }
+        for model_identifier, device in devices.items()
+    }
 
-        json.dump(output, sys.stdout, indent=2 if args.pretty else None, sort_keys=False)
-        sys.stdout.write("\n")
-    finally:
-        for mounted in reversed(mounted_dmgs):
-            unmount_dmg(mounted)
+    with MANIFEST_PATH.open("w", encoding="utf-8") as handle:
+        json.dump(manifest_devices, handle, indent=2, ensure_ascii=True, sort_keys=True)
+        handle.write("\n")
+
+    write_swift_paths_file(devices, model_to_function, function_to_commands)
+    write_swift_device_enum_file(devices)
+    write_swift_screen_info_file(devices)
+    write_swift_display_name_file(devices)
+    write_swift_top_feature_file(devices)
+    print(f"Wrote {MANIFEST_PATH}")
 
 
 if __name__ == "__main__":

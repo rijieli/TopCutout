@@ -115,4 +115,4 @@ iOSInjectionProject/
 # End of https://www.toptal.com/developers/gitignore/api/swift
 
 __pycache__
-
+fetch_result/devices

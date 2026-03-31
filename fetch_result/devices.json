@@ -1,0 +1,479 @@
+{
+  "iPhone10,4": {
+    "model_identifier": "iPhone10,4",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone10,5": {
+    "model_identifier": "iPhone10,5",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone10,6": {
+    "model_identifier": "iPhone10,6",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 30,
+        "width": 223
+      }
+    }
+  },
+  "iPhone11,2": {
+    "model_identifier": "iPhone11,2",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 30,
+        "width": 223
+      }
+    }
+  },
+  "iPhone11,4": {
+    "model_identifier": "iPhone11,4",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 30,
+        "width": 223
+      }
+    }
+  },
+  "iPhone11,8": {
+    "model_identifier": "iPhone11,8",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 33,
+        "width": 245
+      }
+    }
+  },
+  "iPhone12,1": {
+    "model_identifier": "iPhone12,1",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 33,
+        "width": 245
+      }
+    }
+  },
+  "iPhone12,3": {
+    "model_identifier": "iPhone12,3",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 30,
+        "width": 223
+      }
+    }
+  },
+  "iPhone12,5": {
+    "model_identifier": "iPhone12,5",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 30,
+        "width": 223
+      }
+    }
+  },
+  "iPhone12,8": {
+    "model_identifier": "iPhone12,8",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone13,1": {
+    "model_identifier": "iPhone13,1",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 242
+      }
+    }
+  },
+  "iPhone13,2": {
+    "model_identifier": "iPhone13,2",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 32,
+        "width": 222
+      }
+    }
+  },
+  "iPhone13,3": {
+    "model_identifier": "iPhone13,3",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 32,
+        "width": 222
+      }
+    }
+  },
+  "iPhone13,4": {
+    "model_identifier": "iPhone13,4",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 32,
+        "width": 222
+      }
+    }
+  },
+  "iPhone14,2": {
+    "model_identifier": "iPhone14,2",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 176
+      }
+    }
+  },
+  "iPhone14,3": {
+    "model_identifier": "iPhone14,3",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 174
+      }
+    }
+  },
+  "iPhone14,4": {
+    "model_identifier": "iPhone14,4",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 38,
+        "width": 189
+      }
+    }
+  },
+  "iPhone14,5": {
+    "model_identifier": "iPhone14,5",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 176
+      }
+    }
+  },
+  "iPhone14,6": {
+    "model_identifier": "iPhone14,6",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone14,7": {
+    "model_identifier": "iPhone14,7",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 176
+      }
+    }
+  },
+  "iPhone14,8": {
+    "model_identifier": "iPhone14,8",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 174
+      }
+    }
+  },
+  "iPhone15,2": {
+    "model_identifier": "iPhone15,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone15,3": {
+    "model_identifier": "iPhone15,3",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone15,4": {
+    "model_identifier": "iPhone15,4",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone15,5": {
+    "model_identifier": "iPhone15,5",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone16,1": {
+    "model_identifier": "iPhone16,1",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone16,2": {
+    "model_identifier": "iPhone16,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone17,1": {
+    "model_identifier": "iPhone17,1",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone17,2": {
+    "model_identifier": "iPhone17,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone17,3": {
+    "model_identifier": "iPhone17,3",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone17,4": {
+    "model_identifier": "iPhone17,4",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone17,5": {
+    "model_identifier": "iPhone17,5",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 176
+      }
+    }
+  },
+  "iPhone18,1": {
+    "model_identifier": "iPhone18,1",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone18,2": {
+    "model_identifier": "iPhone18,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone18,3": {
+    "model_identifier": "iPhone18,3",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone18,4": {
+    "model_identifier": "iPhone18,4",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "dynamic_island",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone18,5": {
+    "model_identifier": "iPhone18,5",
+    "top_feature": {
+      "curve_available": true,
+      "geometry_available": true,
+      "kind": "notch",
+      "padding_top_points": 0,
+      "size_points": {
+        "height": 34,
+        "width": 176
+      }
+    }
+  },
+  "iPhone8,1": {
+    "model_identifier": "iPhone8,1",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone8,2": {
+    "model_identifier": "iPhone8,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone8,4": {
+    "model_identifier": "iPhone8,4",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone9,1": {
+    "model_identifier": "iPhone9,1",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  },
+  "iPhone9,2": {
+    "model_identifier": "iPhone9,2",
+    "top_feature": {
+      "curve_available": false,
+      "geometry_available": false,
+      "kind": "none",
+      "padding_top_points": null,
+      "size_points": null
+    }
+  }
+}
