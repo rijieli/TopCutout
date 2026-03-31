@@ -1,10 +1,30 @@
 import UIKit
 
+/// Resolves generated screen and top cutout metadata for the current iPhone model.
+///
+/// `TopCutoutCatalog` is the main runtime entry point for the package. It reads the current
+/// model identifier, matches it against the generated device catalog, and exposes the resulting
+/// ``ScreenInfo`` and ``TopCutoutInfo`` values.
+///
+/// On Simulator, lookup prefers `SIMULATOR_MODEL_IDENTIFIER`. On device, lookup uses `uname`.
 public enum TopCutoutCatalog {
+    /// Screen metadata for the current device.
+    ///
+    /// This value is resolved once from the current model identifier and returns the generated
+    /// catalog entry for that device.
+    ///
+    /// - Returns: The matched screen metadata, or `nil` when the current model identifier is not
+    ///   present in the generated catalog.
     public static let screen: ScreenInfo? = {
         screenInfo(for: currentModelIdentifier())
     }()
 
+    /// Top cutout metadata for the current device.
+    ///
+    /// This is a convenience accessor for `TopCutoutCatalog.screen?.topCutout`.
+    ///
+    /// - Returns: The matched top cutout metadata, or `nil` when the current model identifier is
+    ///   not present in the generated catalog.
     public static let current: TopCutoutInfo? = {
         screen?.topCutout
     }()
