@@ -13,24 +13,22 @@ It gives you the size and top inset for the visible notch or Dynamic Island so y
 
 ## Main API
 
-Use `IPhoneTopCutoutCatalog` to fetch geometry:
+Use `TopCutoutCatalog` to fetch the current screen and top feature:
 
 ```swift
 import TopCutout
 
-if let geometry = IPhoneTopCutoutCatalog.current {
-    print(geometry.style)      // .wideNotch, .narrowNotch, or .dynamicIsland
-    print(geometry.size)       // CGSize for the top cutout
-    print(geometry.topInset)   // Distance from the top edge
+if let topFeature = TopCutoutCatalog.current {
+    print(topFeature.kind)         // .notch or .dynamicIsland
+    print(topFeature.size)         // CGSize for the top cutout
+    print(topFeature.paddingTop)   // Distance from the top edge
 }
-```
 
-You can also query a specific model identifier:
-
-```swift
-import TopCutout
-
-let geometry = IPhoneTopCutoutCatalog.geometry(for: "iPhone15,2")
+if let screen = TopCutoutCatalog.screen {
+    print(screen.points)           // logical screen size
+    print(screen.pixels)           // pixel size
+    print(screen.topFeature.kind)  // same top-feature data via screen
+}
 ```
 
 The geometry table is generated from simulator device data and runtime probes for Dynamic Island devices.

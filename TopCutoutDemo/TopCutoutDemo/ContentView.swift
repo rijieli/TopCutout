@@ -25,14 +25,20 @@ struct ContentView: View {
                 safeAreaTop: proxy.safeAreaInsets.top,
                 resolved: resolved
             )
-            let cutoutBottom = resolved.map { $0.geometry.topInset + $0.geometry.size.height } ?? proxy.safeAreaInsets.top
+            let cutoutBottom = resolved.flatMap { resolved in
+                guard let size = resolved.topFeature.size,
+                      let paddingTop = resolved.topFeature.paddingTop else {
+                    return nil
+                }
+                return paddingTop + size.height
+            } ?? proxy.safeAreaInsets.top
 
             ZStack(alignment: .top) {
                 DemoBackdrop()
 
                 if let resolved {
                     LiveCutoutOverlay(
-                        geometry: resolved.geometry,
+                        topFeature: resolved.topFeature,
                         isGlowing: isGlowing
                     )
                     .allowsHitTesting(false)
@@ -82,11 +88,11 @@ struct ContentView: View {
     }
 
     private func resolvedGeometry(screenSize _: CGSize, safeAreaTop _: CGFloat) -> ResolvedGeometry? {
-        if let geometry = IPhoneTopCutoutCatalog.current {
+        if let topFeature = TopCutoutCatalog.current {
             return ResolvedGeometry(
-                geometry: geometry,
+                topFeature: topFeature,
                 source: "Device Table Match",
-                modelIdentifier: IPhoneTopCutoutCatalog.currentModelIdentifier()
+                modelIdentifier: TopCutoutDemoProbe.currentModelIdentifier()
             )
         }
 
@@ -141,7 +147,7 @@ struct ContentView: View {
 }
 
 private struct ResolvedGeometry {
-    let geometry: TopCutoutGeometry
+    let topFeature: IPhoneTopFeatureInfo
     let source: String
     let modelIdentifier: String
 }
@@ -182,12 +188,12 @@ private struct TopCutoutCatalogProbeReport: Encodable {
         safeAreaTop: CGFloat,
         resolved: ResolvedGeometry?
     ) -> TopCutoutCatalogProbeReport {
-        let modelIdentifier = IPhoneTopCutoutCatalog.currentModelIdentifier()
+        let modelIdentifier = TopCutoutDemoProbe.currentModelIdentifier()
         let displayConfiguration = TopCutoutCatalogProbe.displayConfiguration
         let displayInfoProvider = TopCutoutCatalogProbe.displayInfoProvider
         let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
         let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
-        let resolvedGeometry = resolved.map { ProbeGeometry(geometry: $0.geometry) }
+        let resolvedGeometry = resolved.map { ProbeGeometry(topFeature: $0.topFeature) }
         let matchesResolvedGeometry = inferredGeometry.flatMap { inferred in
             resolvedGeometry.map { inferred.matches($0) }
         }
@@ -342,24 +348,22 @@ private struct ProbeGeometry: Encodable {
     let height: Double
     let topInset: Double
 
-    init(geometry: TopCutoutGeometry) {
-        style = geometry.style.rawValue
-        width = TopCutoutCatalogProbeReport.probeValue(geometry.size.width)
-        height = TopCutoutCatalogProbeReport.probeValue(geometry.size.height)
-        topInset = TopCutoutCatalogProbeReport.probeValue(geometry.topInset)
+    init(topFeature: IPhoneTopFeatureInfo) {
+        style = topFeature.kind.rawValue
+        width = TopCutoutCatalogProbeReport.probeValue(topFeature.size?.width ?? 0)
+        height = TopCutoutCatalogProbeReport.probeValue(topFeature.size?.height ?? 0)
+        topInset = TopCutoutCatalogProbeReport.probeValue(topFeature.paddingTop ?? 0)
     }
 
     init(rect: CGRect) {
-        let inferredStyle: TopCutoutStyle
+        let inferredKind: IPhoneTopFeatureKind
         if rect.minY > 0.5 {
-            inferredStyle = .dynamicIsland
-        } else if rect.width >= 180 {
-            inferredStyle = .wideNotch
+            inferredKind = .dynamicIsland
         } else {
-            inferredStyle = .narrowNotch
+            inferredKind = .notch
         }
 
-        style = inferredStyle.rawValue
+        style = inferredKind.rawValue
         width = TopCutoutCatalogProbeReport.probeValue(rect.width)
         height = TopCutoutCatalogProbeReport.probeValue(rect.height)
         topInset = TopCutoutCatalogProbeReport.probeValue(rect.minY)
@@ -420,6 +424,23 @@ private enum TopCutoutCatalogProbe {
 
 }
 
+private enum TopCutoutDemoProbe {
+    static func currentModelIdentifier() -> String {
+        if let sim = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"], !sim.isEmpty {
+            return sim
+        }
+
+        var systemInfo = utsname()
+        uname(&systemInfo)
+
+        let mirror = Mirror(reflecting: systemInfo.machine)
+        return mirror.children.reduce(into: "") { result, element in
+            guard let value = element.value as? Int8, value != 0 else { return }
+            result.append(Character(UnicodeScalar(UInt8(value))))
+        }
+    }
+}
+
 private struct HeaderBlock: View {
     var body: some View {
         VStack(spacing: 10) {
@@ -432,7 +453,7 @@ private struct HeaderBlock: View {
                 .font(.system(size: 34, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The glow is drawn against the actual top hardware area using the package geometry and a full-screen, safe-area-ignoring overlay.")
+            Text("The glow is drawn against the actual top hardware area using the package top-feature data and a full-screen, safe-area-ignoring overlay.")
                 .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.68))
                 .multilineTextAlignment(.center)
@@ -445,12 +466,14 @@ private struct InfoPanel: View {
     let resolved: ResolvedGeometry
 
     var body: some View {
+        let topFeature = resolved.topFeature
+
         VStack(alignment: .leading, spacing: 14) {
-            Text(title(for: resolved.geometry.style))
+            Text(title(for: topFeature.kind))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The overlay position and size come from `IPhoneTopCutoutCatalog.current`, which resolves from the generated device table.")
+            Text("The overlay position and size come from `TopCutoutCatalog.current`, which resolves from the generated device table.")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.74))
 
@@ -458,13 +481,13 @@ private struct InfoPanel: View {
             MetricRow(label: "Model", value: resolved.modelIdentifier)
             MetricRow(
                 label: "Geometry",
-                value: "\(Int(resolved.geometry.size.width)) x \(Int(resolved.geometry.size.height)) pt"
+                value: geometryLabel(for: topFeature)
             )
             MetricRow(
                 label: "Top Inset",
-                value: "\(Int(resolved.geometry.topInset)) pt"
+                value: topInsetLabel(for: topFeature)
             )
-            MetricRow(label: "Style", value: styleLabel(resolved.geometry.style))
+            MetricRow(label: "Kind", value: kindLabel(topFeature.kind))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
@@ -478,26 +501,42 @@ private struct InfoPanel: View {
         )
     }
 
-    private func title(for style: TopCutoutStyle) -> String {
-        switch style {
+    private func title(for kind: IPhoneTopFeatureKind) -> String {
+        switch kind {
         case .dynamicIsland:
             return "Detected Dynamic Island"
-        case .wideNotch:
-            return "Detected Wide Notch"
-        case .narrowNotch:
-            return "Detected Narrow Notch"
+        case .notch:
+            return "Detected Notch"
+        case .none:
+            return "Detected Top Feature"
         }
     }
 
-    private func styleLabel(_ style: TopCutoutStyle) -> String {
-        switch style {
+    private func kindLabel(_ kind: IPhoneTopFeatureKind) -> String {
+        switch kind {
         case .dynamicIsland:
             return "dynamicIsland"
-        case .wideNotch:
-            return "wideNotch"
-        case .narrowNotch:
-            return "narrowNotch"
+        case .notch:
+            return "notch"
+        case .none:
+            return "none"
         }
+    }
+
+    private func geometryLabel(for topFeature: IPhoneTopFeatureInfo) -> String {
+        guard let size = topFeature.size else {
+            return "Unavailable"
+        }
+
+        return "\(Int(size.width)) x \(Int(size.height)) pt"
+    }
+
+    private func topInsetLabel(for topFeature: IPhoneTopFeatureInfo) -> String {
+        guard let paddingTop = topFeature.paddingTop else {
+            return "Unavailable"
+        }
+
+        return "\(Int(paddingTop)) pt"
     }
 }
 
@@ -664,58 +703,60 @@ private struct MetricRow: View {
 }
 
 private struct LiveCutoutOverlay: View {
-    let geometry: TopCutoutGeometry
+    let topFeature: IPhoneTopFeatureInfo
     let isGlowing: Bool
 
     var body: some View {
         GeometryReader { proxy in
             let bounds = CGRect(origin: .zero, size: proxy.size)
-            let occupiedBand = geometry.occupiedTopBand(in: bounds)
-            let buttonCenters = geometry.recommendedButtonCenters(
+            let occupiedBand = topFeature.occupiedTopBand(in: bounds)
+            let buttonCenters = topFeature.recommendedButtonCenters(
                 in: bounds,
                 buttonSize: CGSize(width: 18, height: 18),
                 sidePadding: 16
             )
 
-            ZStack(alignment: .topLeading) {
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.08),
-                        Color.white.opacity(0.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: occupiedBand.height + 44)
-                .mask(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    .white,
-                                    .white.opacity(0.7),
-                                    .clear
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
+            if let occupiedBand {
+                ZStack(alignment: .topLeading) {
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.08),
+                            Color.white.opacity(0.0)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: occupiedBand.height + 44)
+                    .mask(
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        .white,
+                                        .white.opacity(0.7),
+                                        .clear
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             )
-                        )
-                )
+                    )
 
-                if let buttonCenters {
-                    EarStatusDot()
-                        .position(x: buttonCenters.leading.x, y: buttonCenters.leading.y)
+                    if let buttonCenters {
+                        EarStatusDot()
+                            .position(x: buttonCenters.leading.x, y: buttonCenters.leading.y)
 
-                    EarStatusDot()
-                        .position(x: buttonCenters.trailing.x, y: buttonCenters.trailing.y)
+                        EarStatusDot()
+                            .position(x: buttonCenters.trailing.x, y: buttonCenters.trailing.y)
+                    }
+
+                    CutoutGlow(
+                        topFeature: topFeature,
+                        isGlowing: isGlowing
+                    )
                 }
-
-                CutoutGlow(
-                    geometry: geometry,
-                    isGlowing: isGlowing
-                )
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
     }
 }
@@ -734,7 +775,7 @@ private struct EarStatusDot: View {
 }
 
 private struct CutoutGlow: View {
-    let geometry: TopCutoutGeometry
+    let topFeature: IPhoneTopFeatureInfo
     let isGlowing: Bool
 
     private let glowColor = Color(red: 1, green: 0.19, blue: 0.18)
@@ -742,89 +783,89 @@ private struct CutoutGlow: View {
     var body: some View {
         GeometryReader { proxy in
             let bounds = CGRect(origin: .zero, size: proxy.size)
-            let cutout = geometry.rect(in: bounds)
-
-            ZStack {
-                if geometry.style == .dynamicIsland {
-                    Capsule()
-                        .fill(glowColor.opacity(isGlowing ? 0.58 : 0.34))
-                        .frame(
-                            width: cutout.width + (isGlowing ? 36 : 22),
-                            height: cutout.height + (isGlowing ? 24 : 14)
-                        )
-                        .blur(radius: isGlowing ? 24 : 14)
-                        .position(x: cutout.midX, y: cutout.midY)
-
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.black,
-                                    Color(red: 0.08, green: 0.03, blue: 0.04)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
+            if let cutout = topFeature.rect(in: bounds) {
+                ZStack {
+                    if topFeature.kind == .dynamicIsland {
+                        Capsule()
+                            .fill(glowColor.opacity(isGlowing ? 0.58 : 0.34))
+                            .frame(
+                                width: cutout.width + (isGlowing ? 36 : 22),
+                                height: cutout.height + (isGlowing ? 24 : 14)
                             )
-                        )
-                        .frame(width: cutout.width, height: cutout.height)
-                        .overlay {
-                            Capsule()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.white.opacity(0.16),
-                                            glowColor.opacity(0.65)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
+                            .blur(radius: isGlowing ? 24 : 14)
+                            .position(x: cutout.midX, y: cutout.midY)
+
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.black,
+                                        Color(red: 0.08, green: 0.03, blue: 0.04)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
                                 )
-                        }
-                        .position(x: cutout.midX, y: cutout.midY)
-                } else {
-                    TopNotchShape()
-                        .fill(glowColor.opacity(isGlowing ? 0.42 : 0.25))
-                        .frame(
-                            width: cutout.width + (isGlowing ? 40 : 26),
-                            height: cutout.height + (isGlowing ? 22 : 14)
-                        )
-                        .blur(radius: isGlowing ? 26 : 16)
-                        .position(x: cutout.midX, y: cutout.midY + 4)
-
-                    TopNotchShape()
-                        .stroke(glowColor.opacity(isGlowing ? 0.88 : 0.45), lineWidth: 1.5)
-                        .frame(width: cutout.width + 8, height: cutout.height + 4)
-                        .blur(radius: isGlowing ? 2.6 : 1.6)
-                        .position(x: cutout.midX, y: cutout.midY + 1)
-
-                    TopNotchShape()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.black,
-                                    Color(red: 0.08, green: 0.03, blue: 0.04)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
                             )
-                        )
-                        .frame(width: cutout.width, height: cutout.height)
-                        .overlay {
-                            TopNotchShape()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.white.opacity(0.14),
-                                            glowColor.opacity(0.45)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
+                            .frame(width: cutout.width, height: cutout.height)
+                            .overlay {
+                                Capsule()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.16),
+                                                glowColor.opacity(0.65)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            }
+                            .position(x: cutout.midX, y: cutout.midY)
+                    } else {
+                        TopNotchShape()
+                            .fill(glowColor.opacity(isGlowing ? 0.42 : 0.25))
+                            .frame(
+                                width: cutout.width + (isGlowing ? 40 : 26),
+                                height: cutout.height + (isGlowing ? 22 : 14)
+                            )
+                            .blur(radius: isGlowing ? 26 : 16)
+                            .position(x: cutout.midX, y: cutout.midY + 4)
+
+                        TopNotchShape()
+                            .stroke(glowColor.opacity(isGlowing ? 0.88 : 0.45), lineWidth: 1.5)
+                            .frame(width: cutout.width + 8, height: cutout.height + 4)
+                            .blur(radius: isGlowing ? 2.6 : 1.6)
+                            .position(x: cutout.midX, y: cutout.midY + 1)
+
+                        TopNotchShape()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.black,
+                                        Color(red: 0.08, green: 0.03, blue: 0.04)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
                                 )
-                        }
-                        .position(x: cutout.midX, y: cutout.midY)
+                            )
+                            .frame(width: cutout.width, height: cutout.height)
+                            .overlay {
+                                TopNotchShape()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.14),
+                                                glowColor.opacity(0.45)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1
+                                    )
+                            }
+                            .position(x: cutout.midX, y: cutout.midY)
+                    }
                 }
             }
         }
