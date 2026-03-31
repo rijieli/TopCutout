@@ -6,7 +6,7 @@ It is useful when you need more than safe-area insets alone. Instead of only kno
 
 **NO Private API.**
 
-![TopCutout demo](./screenshot.jpg)
+![TopCutout demo](https://raw.githubusercontent.com/rijieli/TopCutout/main/screenshot.jpg)
 
 ## Features
 
