@@ -11,6 +11,8 @@ extension TopCutoutCatalog {
         public let cornerRadiusPoints: CGFloat?
         /// The display density in pixels per inch, when known.
         public let dpi: Int?
+        /// Indicates whether this value was resolved by screen-size matching instead of an exact model match.
+        public private(set) var isResolvedByScreenSize: Bool
         /// The native screen resolution in pixels.
         public let pixels: CGSize
         /// The logical screen size in points.
@@ -25,6 +27,7 @@ extension TopCutoutCatalog {
         /// - Parameters:
         ///   - cornerRadiusPoints: The display corner radius in points, when known.
         ///   - dpi: The display density in pixels per inch, when known.
+        ///   - isResolvedByScreenSize: Whether this value was resolved by screen-size matching instead of an exact model match.
         ///   - pixels: The native screen resolution in pixels.
         ///   - points: The logical screen size in points.
         ///   - scale: The display scale factor.
@@ -32,6 +35,7 @@ extension TopCutoutCatalog {
         public init(
             cornerRadiusPoints: CGFloat?,
             dpi: Int?,
+            isResolvedByScreenSize: Bool = false,
             pixels: CGSize,
             points: CGSize,
             scale: CGFloat,
@@ -39,10 +43,15 @@ extension TopCutoutCatalog {
         ) {
             self.cornerRadiusPoints = cornerRadiusPoints
             self.dpi = dpi
+            self.isResolvedByScreenSize = isResolvedByScreenSize
             self.pixels = pixels
             self.points = points
             self.scale = scale
             self.topCutout = topCutout
+        }
+
+        mutating func markResolvedByScreenSize() {
+            isResolvedByScreenSize = true
         }
     }
 }

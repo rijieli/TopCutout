@@ -8,13 +8,6 @@
 import SwiftUI
 import TopCutout
 
-struct ResolvedGeometry {
-    let topCutout: TopCutoutCatalog.TopCutoutInfo
-    let screenInfo: TopCutoutCatalog.ScreenInfo
-    let source: String
-    let modelIdentifier: String
-}
-
 struct TopCutoutCatalogProbeReport: Encodable {
     let deviceName: String
     let modelIdentifier: String
@@ -49,14 +42,14 @@ struct TopCutoutCatalogProbeReport: Encodable {
     static func make(
         screenSize: CGSize,
         safeAreaTop: CGFloat,
-        resolved: ResolvedGeometry?
+        screenInfo: TopCutoutCatalog.ScreenInfo?
     ) -> TopCutoutCatalogProbeReport {
         let modelIdentifier = TopCutoutDemoProbe.currentModelIdentifier()
         let displayConfiguration = TopCutoutCatalogProbe.displayConfiguration
         let displayInfoProvider = TopCutoutCatalogProbe.displayInfoProvider
         let exclusionRect = TopCutoutCatalogProbe.exclusionRect.map(ProbeRect.init)
         let inferredGeometry = TopCutoutCatalogProbe.exclusionRect.map { ProbeGeometry(rect: $0) }
-        let resolvedGeometry = resolved.map { ProbeGeometry(topCutout: $0.topCutout) }
+        let resolvedGeometry = screenInfo.map { ProbeGeometry(topCutout: $0.topCutout) }
         let matchesResolvedGeometry = inferredGeometry.flatMap { inferred in
             resolvedGeometry.map { inferred.matches($0) }
         }
@@ -72,7 +65,7 @@ struct TopCutoutCatalogProbeReport: Encodable {
             exclusionRect: exclusionRect,
             inferredGeometry: inferredGeometry,
             resolvedGeometry: resolvedGeometry,
-            resolvedSource: resolved?.source,
+            resolvedSource: screenInfo?.resolutionSourceLabel,
             matchesResolvedGeometry: matchesResolvedGeometry
         )
     }
@@ -258,7 +251,7 @@ struct UnresolvedPanel: View {
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text("The current device was not matched by the generated device table, so no supported cutout shape was resolved.")
+            Text("The current device did not match the generated device table, and no safe phone-sized fallback could be resolved.")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .foregroundStyle(Color.white.opacity(0.74))
         }

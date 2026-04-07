@@ -17,14 +17,18 @@ struct ContentView: View {
     @State private var isShowingSimulatorProbeSheet = false
 
     var body: some View {
-        let resolved = resolvedGeometry()
-        let debugReport = debugProbeReport(for: resolved)
+        let screenInfo = TopCutoutCatalog.screen
+        let modelIdentifier = TopCutoutDemoProbe.currentModelIdentifier()
+        let debugReport = debugProbeReport(for: screenInfo)
 
         ZStack(alignment: .top) {
             BlueprintBackdrop()
 
-            if let resolved {
-                BlueprintOverlay(resolved: resolved)
+            if let screenInfo {
+                BlueprintOverlay(
+                    screenInfo: screenInfo,
+                    modelIdentifier: modelIdentifier
+                )
                     .allowsHitTesting(false)
             }
 
@@ -41,7 +45,7 @@ struct ContentView: View {
                     onShowDebug: { isShowingSimulatorProbeSheet = true }
                 )
 
-                if resolved == nil {
+                if screenInfo == nil {
                     UnresolvedPanel()
                 }
 
@@ -88,31 +92,19 @@ struct ContentView: View {
             .safeAreaInsets.top ?? 0
     }
 
-    private func debugProbeReport(for resolved: ResolvedGeometry?) -> TopCutoutCatalogProbeReport? {
+    private func debugProbeReport(for screenInfo: TopCutoutCatalog.ScreenInfo?) -> TopCutoutCatalogProbeReport? {
         guard showSimulatorProbeSection else {
             return nil
         }
 
-        let screenSize = resolved?.screenInfo.points ?? UIScreen.main.bounds.size
+        let screenSize = screenInfo?.points ?? UIScreen.main.bounds.size
         return TopCutoutCatalogProbeReport.make(
             screenSize: screenSize,
             safeAreaTop: currentSafeAreaTop,
-            resolved: resolved
+            screenInfo: screenInfo
         )
     }
 
-    private func resolvedGeometry() -> ResolvedGeometry? {
-        if let screenInfo = TopCutoutCatalog.screen {
-            return ResolvedGeometry(
-                topCutout: screenInfo.topCutout,
-                screenInfo: screenInfo,
-                source: "Device Table Match",
-                modelIdentifier: TopCutoutDemoProbe.currentModelIdentifier()
-            )
-        }
-
-        return nil
-    }
     private func copyDebugReport(_ report: TopCutoutCatalogProbeReport) {
         let payload = report.prettyJSONString
         UIPasteboard.general.string = payload
@@ -275,7 +267,8 @@ private struct HeaderBlock: View {
 }
 
 private struct BlueprintOverlay: View {
-    let resolved: ResolvedGeometry
+    let screenInfo: TopCutoutCatalog.ScreenInfo
+    let modelIdentifier: String
 
     private let accent = Color(red: 0.57, green: 0.9, blue: 1)
     private let labelHeight: CGFloat = 56
@@ -285,10 +278,14 @@ private struct BlueprintOverlay: View {
     private let cornerLabelTopGap: CGFloat = 20
     private let notchOverlayLabelGap: CGFloat = 20
 
+    private var topCutout: TopCutoutCatalog.TopCutoutInfo {
+        screenInfo.topCutout
+    }
+
     var body: some View {
-        let bounds = resolved.screenInfo.bounds
-        let cornerRadius = resolved.screenInfo.fittedCornerRadius(in: bounds)
-        let cutout = resolved.topCutout.rect(in: bounds)
+        let bounds = screenInfo.bounds
+        let cornerRadius = screenInfo.fittedCornerRadius(in: bounds)
+        let cutout = topCutout.rect(in: bounds)
         let displayEdgeTarget = CGPoint(
             x: 0,
             y: bounds.midY
@@ -351,8 +348,8 @@ private struct BlueprintOverlay: View {
 
             BlueprintLabel(
                 title: "Display Edge",
-                value: "\(Int(resolved.screenInfo.points.width)) x \(Int(resolved.screenInfo.points.height)) pt",
-                detail: "\(format(resolved.screenInfo.scale))x scale • \(resolved.screenInfo.pixelsLabel)",
+                value: "\(Int(screenInfo.points.width)) x \(Int(screenInfo.points.height)) pt",
+                detail: "\(format(screenInfo.scale))x scale • \(screenInfo.pixelsLabel)",
                 accent: accent
             )
             .position(x: displayLabelPosition.x, y: displayLabelPosition.y)
@@ -369,7 +366,7 @@ private struct BlueprintOverlay: View {
 
                 BlueprintLabel(
                     title: "Sensor Housing",
-                    value: "\(format(resolved.topCutout.size?.width ?? 0)) x \(format(resolved.topCutout.size?.height ?? 0)) pt",
+                    value: "\(format(topCutout.size?.width ?? 0)) x \(format(topCutout.size?.height ?? 0)) pt",
                     detail: sensorHousingDetail,
                     accent: accent
                 )
@@ -388,7 +385,7 @@ private struct BlueprintOverlay: View {
 
                 BlueprintLabel(
                     title: "Corner Radius",
-                    value: "\(format(resolved.screenInfo.cornerRadiusPoints ?? 0)) pt",
+                    value: "\(format(screenInfo.cornerRadiusPoints ?? 0)) pt",
                     detail: nil,
                     accent: accent
                 )
@@ -411,10 +408,10 @@ private struct BlueprintOverlay: View {
         in bounds: CGRect,
         sensorLabelPosition: CGPoint?
     ) -> (path: Path, frame: CGRect)? {
-        guard resolved.topCutout.kind == .notch,
-              let cutout = resolved.topCutout.rect(in: bounds),
+        guard topCutout.kind == .notch,
+              let cutout = topCutout.rect(in: bounds),
               let sensorLabelPosition,
-              let device = TopCutoutCatalog.Device(rawValue: resolved.modelIdentifier),
+              let device = TopCutoutCatalog.Device(rawValue: modelIdentifier),
               let sensorHousingPath = device.sensorHousingPath else {
             return nil
         }
@@ -450,11 +447,11 @@ private struct BlueprintOverlay: View {
     }
 
     private var sensorHousingDetail: String {
-        if let paddingTop = resolved.topCutout.paddingTop, paddingTop > 0.000_1 {
+        if let paddingTop = topCutout.paddingTop, paddingTop > 0.000_1 {
             return "Top gap \(format(paddingTop)) pt"
         }
 
-        switch resolved.topCutout.kind {
+        switch topCutout.kind {
         case .dynamicIsland:
             return "Dynamic Island"
         case .notch:
@@ -563,112 +560,6 @@ private struct BlueprintArrow: View {
                 .frame(width: 5, height: 5)
                 .position(x: to.x, y: to.y)
         }
-    }
-}
-
-private struct InfoPanel: View {
-    let resolved: ResolvedGeometry
-
-    var body: some View {
-        let topCutout = resolved.topCutout
-        let screenInfo = resolved.screenInfo
-
-        VStack(alignment: .leading, spacing: 14) {
-            Text(title(for: topCutout.kind))
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-
-            Text("The overlay position and size come from `TopCutoutCatalog.current`, which resolves from the generated device table.")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .foregroundStyle(Color.white.opacity(0.74))
-
-            MetricRow(label: "Source", value: resolved.source)
-            MetricRow(label: "Model", value: resolved.modelIdentifier)
-            MetricRow(
-                label: "Geometry",
-                value: geometryLabel(for: topCutout)
-            )
-            MetricRow(
-                label: "Top Inset",
-                value: topInsetLabel(for: topCutout)
-            )
-            MetricRow(label: "Kind", value: kindLabel(topCutout.kind))
-            MetricRow(label: "Screen", value: screenLabel(for: screenInfo))
-            MetricRow(label: "Scale", value: scaleLabel(for: screenInfo))
-            MetricRow(label: "Corner Radius", value: cornerRadiusLabel(for: screenInfo))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(22)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                }
-        )
-    }
-
-    private func title(for kind: TopCutoutCatalog.TopCutoutKind) -> String {
-        switch kind {
-        case .dynamicIsland:
-            return "Detected Dynamic Island"
-        case .notch:
-            return "Detected Notch"
-        case .none:
-            return "Detected Top Feature"
-        }
-    }
-
-    private func kindLabel(_ kind: TopCutoutCatalog.TopCutoutKind) -> String {
-        switch kind {
-        case .dynamicIsland:
-            return "dynamicIsland"
-        case .notch:
-            return "notch"
-        case .none:
-            return "none"
-        }
-    }
-
-    private func geometryLabel(for topCutout: TopCutoutCatalog.TopCutoutInfo) -> String {
-        guard let size = topCutout.size else {
-            return "Unavailable"
-        }
-
-        return "\(Int(size.width)) x \(Int(size.height)) pt"
-    }
-
-    private func topInsetLabel(for topCutout: TopCutoutCatalog.TopCutoutInfo) -> String {
-        guard let paddingTop = topCutout.paddingTop else {
-            return "Unavailable"
-        }
-
-        return "\(Int(paddingTop)) pt"
-    }
-
-    private func screenLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
-        "\(Int(screenInfo.points.width)) x \(Int(screenInfo.points.height)) pt"
-    }
-
-    private func scaleLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
-        "\(format(screenInfo.scale))x @ \(screenInfo.pixelsLabel)"
-    }
-
-    private func cornerRadiusLabel(for screenInfo: TopCutoutCatalog.ScreenInfo) -> String {
-        guard let cornerRadius = screenInfo.cornerRadiusPoints else {
-            return "Unavailable"
-        }
-
-        return "\(format(cornerRadius)) pt"
-    }
-
-    private func format(_ value: CGFloat) -> String {
-        if abs(value.rounded() - value) < 0.000_1 {
-            return String(Int(value.rounded()))
-        }
-
-        return String(format: "%.1f", value)
     }
 }
 
@@ -866,6 +757,10 @@ private struct BlueprintHatchPattern: Shape {
 }
 
 extension TopCutoutCatalog.ScreenInfo {
+    var resolutionSourceLabel: String {
+        isResolvedByScreenSize ? "Nearest Size Match" : "Device Table Match"
+    }
+
     fileprivate var bounds: CGRect {
         CGRect(origin: .zero, size: points)
     }

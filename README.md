@@ -11,6 +11,7 @@ It is useful when you need more than safe-area insets alone. Instead of only kno
 ## Features
 
 - Runtime lookup for the current device using the model identifier
+- Nearest-size fallback for unknown iPhone model identifiers
 - Generated catalog of iPhone screen metadata and top cutout geometry
 - Distinguishes between `.none`, `.notch`, and `.dynamicIsland`
 - Helper APIs for the cutout rect, occupied top band, and left/right "ear" regions
@@ -49,7 +50,9 @@ Then add the `TopCutout` product to your target:
 - `TopCutoutCatalog.current -> TopCutoutInfo?`
 - `TopCutoutCatalog.screen -> ScreenInfo?`
 
-Both values are `nil` when the current model identifier is not present in the generated catalog.
+When the current iPhone model identifier is not present in the generated catalog, `TopCutoutCatalog`
+falls back to the nearest generated iPhone screen size. Values are still `nil` when no safe match
+can be resolved, such as on non-phone devices.
 
 ### `TopCutoutInfo`
 
@@ -75,6 +78,7 @@ Represents screen metadata plus top cutout data.
 - `scale`
 - `dpi`
 - `cornerRadiusPoints`
+- `isResolvedByScreenSize`
 - `topCutout`
 
 ### `TopCutoutCatalog.Device`
