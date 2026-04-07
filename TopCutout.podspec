@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'TopCutout'
-  s.version          = '0.1.0'
+  s.version          = '0.2.0'
   s.summary          = 'Top cutout geometry for iPhone screens, including notch and Dynamic Island layouts.'
   s.description      = <<-DESC
 TopCutout is an iOS library that exposes generated top cutout metadata for iPhone screens.
