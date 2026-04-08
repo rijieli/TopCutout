@@ -20,7 +20,7 @@ It is useful when you need more than safe-area insets alone. Instead of only kno
 
 ## Requirements
 
-- iOS 15+
+- iOS 13+
 
 ## Installation
 
